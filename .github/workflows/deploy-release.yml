@@ -1,0 +1,35 @@
+name: Deploy release to Oracle
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag à déployer (ex. v1.0.0)"
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USER }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          envs: RELEASE_TAG
+          script: |
+            set -euo pipefail
+            cd /home/ubuntu/lexo
+            git fetch --tags origin
+            git checkout -f "$RELEASE_TAG"
+            npm install
+            npm run build
+            sudo systemctl restart lexo
+            sleep 2
+            curl -fsS http://127.0.0.1:3001/health
+            echo

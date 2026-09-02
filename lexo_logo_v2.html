@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LEXO — Logo HTML/CSS</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: #eeeeee;
+
+    font-family:
+        "Arial Rounded MT Bold",
+        Arial,
+        Helvetica,
+        sans-serif;
+}
+
+/* =========================
+   LOGO
+========================= */
+
+.lexo-logo {
+    width: min(700px, 90vw);
+    aspect-ratio: 1 / 1;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    gap: 12px;
+    padding: 60px;
+
+    background: #030b1d;
+
+    border-radius: 22%;
+    overflow: hidden;
+}
+
+/* =========================
+   LETTRES L E X
+========================= */
+
+.letter {
+    color: #f7f7f4;
+
+    font-size: 150px;
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: -12px;
+
+    text-shadow:
+        0 3px 5px rgba(0, 0, 0, 0.15);
+}
+
+.letter.x {
+    margin-left: -5px;
+    margin-right: -2px;
+}
+
+/* =========================
+   TUILE DU O
+========================= */
+
+.o-tile {
+    width: 142px;
+    height: 142px;
+
+    flex-shrink: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background:
+        linear-gradient(
+            145deg,
+            #ffd35c 0%,
+            #ffc137 45%,
+            #ffaf12 100%
+        );
+
+    border-radius: 30px;
+
+    /* Inclinaison de la tuile */
+    transform: rotate(6deg);
+
+    /* Effet 3D */
+    box-shadow:
+        0 12px 0 #b87800,
+        0 16px 8px rgba(110, 65, 0, 0.45),
+        0 24px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* =========================
+   LE VRAI O
+========================= */
+
+.o-letter {
+    color: #f7f7f4;
+
+    font-family:
+        "Arial Rounded MT Bold",
+        Arial,
+        Helvetica,
+        sans-serif;
+
+    font-size: 150px;
+    font-weight: 900;
+
+    line-height: 1;
+    letter-spacing: -12px;
+
+    /* Le O suit la tuile : même inclinaison */
+    text-shadow:
+        0 4px 5px rgba(0, 0, 0, 0.20);
+}
+
+/* =========================
+   MOBILE
+========================= */
+
+@media (max-width: 750px) {
+
+    .lexo-logo {
+        padding: 8vw;
+        gap: 1.5vw;
+    }
+
+    .letter {
+        font-size: 19vw;
+        letter-spacing: -1.6vw;
+    }
+
+    .o-tile {
+        width: 18vw;
+        height: 18vw;
+
+        border-radius: 4vw;
+
+        box-shadow:
+            0 1.8vw 0 #b87800,
+            0 2.5vw 2vw rgba(110, 65, 0, 0.45),
+            0 3vw 3vw rgba(0, 0, 0, 0.35);
+    }
+
+    .o-letter {
+        font-size: 19vw;
+        letter-spacing: -1.6vw;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<div class="lexo-logo">
+    <span class="letter">L</span>
+    <span class="letter">E</span>
+    <span class="letter x">X</span>
+
+    <div class="o-tile">
+        <span class="o-letter">O</span>
+    </div>
+</div>
+
+</body>
+</html>
