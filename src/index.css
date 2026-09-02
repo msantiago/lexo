@@ -132,8 +132,7 @@ button {
   line-height: 1;
 }
 
-.lexo-letter,
-.lexo-o-letter {
+.lexo-letter {
   color: var(--lexo-ink);
   font-size: 1em;
   font-weight: 700;
@@ -148,11 +147,14 @@ button {
 }
 
 .lexo-o-tile {
-  width: 0.94em;
-  height: 0.94em;
+  width: 0.92em;
+  height: 0.92em;
   flex: none;
   display: grid;
   place-items: center;
+  padding: 0.07em;
+  box-sizing: border-box;
+  color: var(--lexo-ink);
   border-radius: 0.2em;
   transform: rotate(6deg);
   background: linear-gradient(145deg, #ffd35c 0%, #ffc137 45%, #ffaf12 100%);
@@ -162,8 +164,12 @@ button {
     0 0.16em 0.16em rgba(0, 0, 0, 0.35);
 }
 
-.lexo-o-letter {
-  text-shadow: 0 0.03em 0.04em rgba(0, 0, 0, 0.2);
+.lexo-o-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 0.03em 0.04em rgba(0, 0, 0, 0.2));
 }
 
 .logo p {
