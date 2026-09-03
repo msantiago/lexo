@@ -215,7 +215,9 @@ function MiniGrid({ grid }: { grid: Cell[] }) {
     <div className="mini-board" aria-label="Grille de la manche">
       {grid.map((cell, i) => (
         <div key={i} className={`mini-die ${cell.letter === "QU" ? "qu" : ""}`}>
-          {cell.display}
+          <span className="die-face" style={{ transform: `rotate(${cell.rotation}deg)` }}>
+            {cell.display}
+          </span>
         </div>
       ))}
     </div>

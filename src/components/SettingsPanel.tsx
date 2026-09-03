@@ -48,6 +48,31 @@ export default function SettingsPanel({ settings, disabled, onChange }: Props) {
           <p className="rules-hint">{difficultyHint(settings.difficulty)}</p>
         </div>
 
+        <span>Lettres</span>
+        <div>
+          <div className="chips">
+            <Chip
+              on={settings.letterOrientation !== "shuffle"}
+              disabled={disabled}
+              onClick={() => set({ letterOrientation: "upright" })}
+            >
+              À l’endroit
+            </Chip>
+            <Chip
+              on={settings.letterOrientation === "shuffle"}
+              disabled={disabled}
+              onClick={() => set({ letterOrientation: "shuffle" })}
+            >
+              Shuffle
+            </Chip>
+          </div>
+          <p className="rules-hint">
+            {settings.letterOrientation === "shuffle"
+              ? "Comme des dés physiques : chaque lettre est tournée au hasard"
+              : "Toutes les lettres restent dans le bon sens"}
+          </p>
+        </div>
+
         <span>Minimum</span>
         <div className="chips">
           {[3, 4, 5].map((n) => (

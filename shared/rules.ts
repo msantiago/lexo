@@ -41,6 +41,7 @@ export function summarizeRules(settings: GameSettings): string {
     `Manche de ${durationPhrase(settings.durationSec)}, ` +
     `grille ${difficultyPhrase(settings.difficulty)}, ` +
     `mots d’au moins ${settings.minLetters} lettres, ` +
+    `${settings.letterOrientation === "shuffle" ? "lettres tournées au hasard" : "lettres à l’endroit"}, ` +
     `${formesPhrase(settings)}, ` +
     `${verbsPhrase(settings)}.`
   );

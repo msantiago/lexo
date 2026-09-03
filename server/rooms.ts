@@ -112,6 +112,7 @@ function clampSettings(input: Partial<GameSettings> | undefined): GameSettings {
     allowPastParticiple: allowPast,
     allowPresentParticiple: allowPresent,
     difficulty,
+    letterOrientation: base.letterOrientation === "shuffle" ? "shuffle" : "upright",
   };
 }
 

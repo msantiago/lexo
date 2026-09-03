@@ -165,7 +165,9 @@ export default function Board({
             ].join(" ")}
             style={{ animationDelay: `${i * 32}ms` }}
           >
-            {cell.display}
+            <span className="die-face" style={{ transform: `rotate(${cell.rotation}deg)` }}>
+              {cell.display}
+            </span>
           </div>
         ))}
       </div>

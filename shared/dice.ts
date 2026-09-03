@@ -1,4 +1,4 @@
-import type { Cell } from "./types.ts";
+import type { Cell, DieRotation } from "./types.ts";
 
 /** Classic French Boggle dice (Q is played as Qu). */
 export const DICE: readonly string[][] = [
@@ -29,17 +29,22 @@ function shuffle<T>(items: T[]): T[] {
   return copy;
 }
 
-export function toCell(face: string): Cell {
+const ROTATIONS: DieRotation[] = [0, 90, 180, 270];
+
+export function toCell(face: string, rotation: DieRotation = 0): Cell {
   if (face === "Q") {
-    return { letter: "QU", display: "Qu", letterCount: 2 };
+    return { letter: "QU", display: "Qu", letterCount: 2, rotation };
   }
-  return { letter: face, display: face, letterCount: 1 };
+  return { letter: face, display: face, letterCount: 1, rotation };
 }
 
-export function rollGrid(): Cell[] {
+export function rollGrid(shuffleLetters = false): Cell[] {
   return shuffle([...DICE]).map((die) => {
     const face = die[Math.floor(Math.random() * die.length)];
-    return toCell(face);
+    const rotation = shuffleLetters
+      ? ROTATIONS[Math.floor(Math.random() * ROTATIONS.length)]
+      : 0;
+    return toCell(face, rotation);
   });
 }
 

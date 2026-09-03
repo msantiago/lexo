@@ -9,6 +9,10 @@ export type ConjugationMode = "all" | "participles";
 
 export type GridDifficulty = "very-easy" | "easy" | "medium" | "hard";
 
+export type LetterOrientation = "upright" | "shuffle";
+
+export type DieRotation = 0 | 90 | 180 | 270;
+
 export type GameSettings = {
   durationSec: number;
   minLetters: number;
@@ -18,6 +22,7 @@ export type GameSettings = {
   allowPastParticiple: boolean;
   allowPresentParticiple: boolean;
   difficulty: GridDifficulty;
+  letterOrientation: LetterOrientation;
 };
 
 export const DIFFICULTY_BANDS: Record<GridDifficulty, { min: number; max: number }> = {
@@ -43,12 +48,14 @@ export const DEFAULT_SETTINGS: GameSettings = {
   allowPastParticiple: true,
   allowPresentParticiple: true,
   difficulty: "medium",
+  letterOrientation: "upright",
 };
 
 export type Cell = {
   letter: string;
   display: string;
   letterCount: number;
+  rotation: DieRotation;
 };
 
 export type FoundWord = {

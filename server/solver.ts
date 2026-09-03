@@ -83,11 +83,11 @@ export function rollPlayableGrid(settings: GameSettings): {
   words: PossibleWord[];
 } {
   const { min, max } = bandFor(settings);
-  let bestGrid = rollGrid();
+  let bestGrid = rollGrid(settings.letterOrientation === "shuffle");
   let bestWords = collectWords(bestGrid, settings);
 
   for (let attempt = 1; attempt < MAX_ROLL_ATTEMPTS && !inBand(bestWords.length, min, max); attempt++) {
-    const grid = rollGrid();
+    const grid = rollGrid(settings.letterOrientation === "shuffle");
     const words = collectWords(grid, settings);
     if (betterCount(words.length, bestWords.length, min, max)) {
       bestGrid = grid;
