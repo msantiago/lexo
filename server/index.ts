@@ -11,8 +11,10 @@ import {
   joinRoom,
   leaveRoom,
   leaveSocket,
+  listPublicRooms,
   rejoinRoom,
   setBroadcast,
+  setLobbyBroadcast,
   startGame,
   submitWord,
   updateSettings,
@@ -53,10 +55,20 @@ setBroadcast((room, event, payload) => {
   }
 });
 
+setLobbyBroadcast((rooms) => {
+  io.emit("lobby:rooms", rooms);
+});
+
 io.on("connection", (socket) => {
-  socket.on("room:create", ({ name }: { name?: string; solo?: boolean }) => {
+  socket.emit("lobby:rooms", listPublicRooms());
+
+  socket.on("lobby:list", () => {
+    socket.emit("lobby:rooms", listPublicRooms());
+  });
+
+  socket.on("room:create", ({ name, solo }: { name?: string; solo?: boolean }) => {
     try {
-      const { room, playerId } = createRoom(socket.id, name ?? "");
+      const { room, playerId } = createRoom(socket.id, name ?? "", Boolean(solo));
       socket.emit("session", { playerId, code: room.code });
       socket.emit("room:state", viewFor(room, playerId));
     } catch (err) {

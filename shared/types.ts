@@ -1,5 +1,10 @@
 export const MAX_PLAYERS = 10;
 
+/** Compare les prénoms sans tenir compte de la casse ni des espaces superflus. */
+export function foldPlayerName(raw: string): string {
+  return raw.trim().replace(/\s+/g, " ").slice(0, 16).toLocaleLowerCase("fr");
+}
+
 export type ConjugationMode = "all" | "participles";
 
 export type GridDifficulty = "very-easy" | "easy" | "medium" | "hard";
@@ -65,6 +70,24 @@ export type PlayerPublic = {
 };
 
 export type Phase = "lobby" | "playing" | "results";
+
+export type LobbyPlayer = {
+  id: string;
+  name: string;
+  color: string;
+  isHost: boolean;
+  totalScore: number;
+  roundScore: number;
+};
+
+export type LobbyRoom = {
+  code: string;
+  phase: Phase;
+  hostId: string;
+  playerCount: number;
+  difficulty: GridDifficulty;
+  players: LobbyPlayer[];
+};
 
 export type WordRecap = {
   playerId: string;

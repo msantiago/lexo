@@ -4,6 +4,7 @@ import {
   MAX_PLAYERS,
   PLAYER_COLORS,
   REROLL_WINDOW_MS,
+  foldPlayerName,
   type Cell,
   type FoundWord,
   type GameSettings,
@@ -13,6 +14,7 @@ import {
   type RejectedWord,
   type PossibleWord,
   type RoundSummary,
+  type LobbyRoom,
   type RoomView,
   type SharedWord,
   type WordRecap,
@@ -42,6 +44,8 @@ type RejectedAttempt = {
 type Room = {
   code: string;
   hostId: string;
+  /** Hidden from the public lobby list (partie solo). */
+  solo: boolean;
   phase: Phase;
   round: number;
   settings: GameSettings;
@@ -240,15 +244,46 @@ export function getRoom(code: string): Room | undefined {
 }
 
 type Broadcast = (room: Room, event: string, payload?: unknown) => void;
+type LobbyBroadcast = (rooms: LobbyRoom[]) => void;
 
 let broadcast: Broadcast = () => {};
+let lobbyBroadcast: LobbyBroadcast = () => {};
 
 export function setBroadcast(fn: Broadcast) {
   broadcast = fn;
 }
 
+export function setLobbyBroadcast(fn: LobbyBroadcast) {
+  lobbyBroadcast = fn;
+}
+
+export function listPublicRooms(): LobbyRoom[] {
+  return [...rooms.values()]
+    .filter((room) => !room.solo)
+    .map((room) => ({
+      code: room.code,
+      phase: room.phase,
+      hostId: room.hostId,
+      playerCount: room.players.length,
+      difficulty: room.settings.difficulty,
+      players: room.players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        color: p.color,
+        isHost: p.id === room.hostId,
+        totalScore: p.totalScore,
+        roundScore: p.roundScore,
+      })),
+    }));
+}
+
+function notifyLobby() {
+  lobbyBroadcast(listPublicRooms());
+}
+
 function emitState(room: Room) {
   broadcast(room, "room:state");
+  notifyLobby();
 }
 
 function nextColor(room: Room): string {
@@ -290,6 +325,7 @@ function finishRound(room: Room) {
   emitState(room);
   if (room.players.every((p) => p.socketId === null)) {
     rooms.delete(room.code);
+    notifyLobby();
   }
 }
 
@@ -301,7 +337,7 @@ setInterval(() => {
   }
 }, 200);
 
-export function createRoom(socketId: string, name: string) {
+export function createRoom(socketId: string, name: string, solo = false) {
   const code = makeCode();
   const player: Player = {
     id: makeId(),
@@ -315,6 +351,7 @@ export function createRoom(socketId: string, name: string) {
   const room: Room = {
     code,
     hostId: player.id,
+    solo,
     phase: "lobby",
     round: 0,
     settings: { ...DEFAULT_SETTINGS },
@@ -333,6 +370,7 @@ export function createRoom(socketId: string, name: string) {
   };
   rooms.set(code, room);
   socketRoom.set(socketId, code);
+  notifyLobby();
   return { room, playerId: player.id };
 }
 
@@ -342,9 +380,13 @@ export function joinRoom(socketId: string, code: string, name: string) {
   if (room.players.length >= MAX_PLAYERS) {
     return { error: "Ce salon est complet (10 joueurs)" as const };
   }
+  const playerName = sanitizeName(name);
+  if (room.players.some((p) => foldPlayerName(p.name) === foldPlayerName(playerName))) {
+    return { error: "Ce prénom est déjà pris dans ce salon" as const };
+  }
   const player: Player = {
     id: makeId(),
-    name: sanitizeName(name),
+    name: playerName,
     color: nextColor(room),
     socketId,
     words: [],
@@ -378,6 +420,7 @@ function removePlayer(room: Room, player: Player) {
     clearTimer(room);
     clearRerollTimer(room);
     rooms.delete(room.code);
+    notifyLobby();
     return;
   }
   if (room.hostId === player.id) {

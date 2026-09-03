@@ -1,8 +1,9 @@
 import { io, type Socket } from "socket.io-client";
-import type { GameSettings, RoomView, WordSubmitResult } from "@shared/types";
+import type { GameSettings, LobbyRoom, RoomView, WordSubmitResult } from "@shared/types";
 
 export type ServerToClient = {
   "room:state": (room: RoomView) => void;
+  "lobby:rooms": (rooms: LobbyRoom[]) => void;
   session: (data: { playerId: string; code: string }) => void;
   "word:result": (result: WordSubmitResult) => void;
   "word:shared": (data: { key: string }) => void;
@@ -10,10 +11,12 @@ export type ServerToClient = {
 };
 
 export type ClientToServer = {
+  "lobby:list": () => void;
   "room:create": (data: { name: string; solo?: boolean }) => void;
   "room:join": (data: { code: string; name: string }) => void;
   "room:rejoin": (data: { code: string; playerId: string }) => void;
   "room:settings": (settings: Partial<GameSettings>) => void;
+  "room:leave": () => void;
   "game:start": () => void;
   "game:word": (data: { cells: number[] }) => void;
   "game:reroll": () => void;

@@ -1,4 +1,5 @@
 import type { GameSettings, RoomView } from "@shared/types";
+import { summarizeRules } from "@shared/rules";
 import SettingsPanel from "../components/SettingsPanel";
 import LeaveButton from "../components/LeaveButton";
 import { unlockAudio } from "../lib/sfx";
@@ -69,11 +70,14 @@ export default function Lobby({ room, isHost, onSettings, onStart, onLeave }: Pr
         </div>
       </div>
 
-      <SettingsPanel
-        settings={room.settings}
-        disabled={!isHost}
-        onChange={onSettings}
-      />
+      {isHost ? (
+        <SettingsPanel settings={room.settings} onChange={onSettings} />
+      ) : (
+        <section className="card rules-summary">
+          <h2>Règles</h2>
+          <p>{summarizeRules(room.settings)}</p>
+        </section>
+      )}
     </div>
   );
 }
