@@ -1,4 +1,4 @@
-import type { Cell, PossibleWord, RoomView } from "@shared/types";
+import type { Cell, PossibleWord, RoundSummary, RoomView } from "@shared/types";
 import WordLink from "../components/WordLink";
 import LeaveButton from "../components/LeaveButton";
 import { socket } from "../socket";
@@ -166,44 +166,7 @@ export default function Results({ room, isHost, onNext, onLeave }: Props) {
             </section>
           )}
 
-          {summary && (
-            <MissedWords
-              missed={summary.missed}
-              possibleCount={summary.possibleCount}
-              foundCount={summary.possibleCount - summary.missed.length}
-            />
-          )}
-
-          {room.recap && (
-            <section className="card" style={{ marginTop: 16 }}>
-              <h2>Tous les mots</h2>
-              {room.recap.map((block) => (
-                <div key={block.playerId} className="recap-block">
-                  <div className="recap-player">
-                    <span className="avatar" style={{ background: block.color, width: 28, height: 28 }}>
-                      {block.name.slice(0, 1).toUpperCase()}
-                    </span>
-                    <strong>{block.name}</strong>
-                    <span className="muted">
-                      {block.words.length} mot{block.words.length > 1 ? "s" : ""} · {block.roundScore}{" "}
-                      pts
-                    </span>
-                  </div>
-                  <ul className="words recap-words">
-                    {block.words.length === 0 && <li className="muted">Aucun mot</li>}
-                    {block.words.map((w) => (
-                      <li key={w.key} className={w.shared ? "shared" : ""}>
-                        <span>
-                          <WordLink word={w.display} />
-                        </span>
-                        <em>{w.points}</em>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </section>
-          )}
+          {summary && <PossibleWords summary={summary} />}
         </div>
       </div>
     </div>
@@ -224,58 +187,110 @@ function MiniGrid({ grid }: { grid: Cell[] }) {
   );
 }
 
-function MissedWords({
-  missed,
-  possibleCount,
-  foundCount,
-}: {
-  missed: PossibleWord[];
-  possibleCount: number;
-  foundCount: number;
-}) {
-  const groups = new Map<number, PossibleWord[]>();
-  for (const word of missed) {
+type ListedWord = PossibleWord & {
+  owners: { name: string; color: string }[];
+};
+
+function listedPossibleWords(summary: RoundSummary): ListedWord[] {
+  const byKey = new Map<string, ListedWord>();
+  for (const w of summary.missed) {
+    byKey.set(w.key, { ...w, owners: [] });
+  }
+  for (const w of summary.unique) {
+    byKey.set(w.key, {
+      key: w.key,
+      display: w.display,
+      letters: w.letters,
+      points: w.points,
+      owners: [{ name: w.name, color: w.color }],
+    });
+  }
+  for (const w of summary.shared) {
+    byKey.set(w.key, {
+      key: w.key,
+      display: w.display,
+      letters: w.letters,
+      points: 0,
+      owners: w.names,
+    });
+  }
+  return [...byKey.values()];
+}
+
+function PossibleWords({ summary }: { summary: RoundSummary }) {
+  const words = listedPossibleWords(summary);
+  const groups = new Map<number, ListedWord[]>();
+  for (const word of words) {
     const list = groups.get(word.letters);
     if (list) list.push(word);
     else groups.set(word.letters, [word]);
   }
+  for (const list of groups.values()) {
+    list.sort((a, b) => a.display.localeCompare(b.display, "fr"));
+  }
   const lengths = [...groups.keys()].sort((a, b) => b - a);
+  const foundCount = summary.unique.length + summary.shared.length;
+  const { possibleCount, missed } = summary;
 
   return (
     <section className="card" style={{ marginTop: 16 }}>
-      <h2>Mots non trouvés</h2>
+      <h2>Mots possibles</h2>
       <p className="muted recap-help">
         {foundCount} trouvé{foundCount > 1 ? "s" : ""} sur {possibleCount}{" "}
         possible{possibleCount > 1 ? "s" : ""} dans la grille
         {missed.length > 0
           ? ` · ${missed.length} oublié${missed.length > 1 ? "s" : ""}`
           : ""}
+        . En gras : mot trouvé
+        {foundCount > 0 ? " (vert = un joueur, rouge = plusieurs)" : ""}
         . Les points indiqués auraient été gagnés si le mot était unique.
       </p>
-      {missed.length === 0 && possibleCount > 0 ? (
-        <p>Tous les mots de la grille ont été trouvés. Bravo !</p>
-      ) : missed.length === 0 ? (
+      {words.length === 0 ? (
         <p className="muted">Aucun mot possible avec ces règles.</p>
       ) : (
-        <div className="missed-scroll">
-          {lengths.map((n) => (
-            <div key={n}>
-              <h3 className="recap-title">
-                {n} lettre{n > 1 ? "s" : ""} · {groups.get(n)!.length}
-              </h3>
-              <ul className="words recap-words">
-                {groups.get(n)!.map((w) => (
-                  <li key={w.key}>
-                    <span>
-                      <WordLink word={w.display} />
-                    </span>
-                    <em>{w.points}</em>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
+        <>
+          {missed.length === 0 && possibleCount > 0 && (
+            <p>Tous les mots de la grille ont été trouvés. Bravo !</p>
+          )}
+          <div className="missed-scroll">
+            {lengths.map((n) => (
+              <div key={n}>
+                <h3 className="recap-title">
+                  {n} lettre{n > 1 ? "s" : ""} · {groups.get(n)!.length}
+                </h3>
+                <ul className="words recap-words possible-words">
+                  {groups.get(n)!.map((w) => {
+                    const foundClass =
+                      w.owners.length > 1
+                        ? "found-shared"
+                        : w.owners.length === 1
+                          ? "found-unique"
+                          : "";
+                    return (
+                      <li key={w.key} className={foundClass}>
+                        <span>
+                          <WordLink word={w.display} />
+                          {w.owners.length > 0 && (
+                            <small className="word-owner">
+                              {" "}
+                              {w.owners.map((p, i) => (
+                                <span key={`${p.name}-${i}`} style={{ color: p.color }}>
+                                  {i > 0 ? ", " : ""}
+                                  {p.name}
+                                </span>
+                              ))}
+                            </small>
+                          )}
+                        </span>
+                        <em>{w.points}</em>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </section>
   );
