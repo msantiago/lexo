@@ -1230,19 +1230,21 @@ button {
   opacity: 0.85;
 }
 
-.recap-block {
-  margin-top: 14px;
+.possible-words li {
+  font-weight: 600;
 }
 
-.recap-player {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
+.possible-words li.found-unique .word-label,
+.possible-words li.found-shared .word-label {
+  font-weight: 800;
 }
 
-.recap-player .muted {
-  margin-left: auto;
+.possible-words li.found-unique .word-label {
+  color: var(--mint);
+}
+
+.possible-words li.found-shared .word-label {
+  color: var(--coral);
 }
 
 .podium {
@@ -1266,16 +1268,6 @@ button {
   font-family: var(--font-dice);
   font-size: 26px;
   width: 36px;
-}
-
-.recap-block {
-  margin-top: 10px;
-}
-
-.recap-block summary {
-  cursor: pointer;
-  font-weight: 800;
-  color: var(--gold-soft);
 }
 
 .muted {
