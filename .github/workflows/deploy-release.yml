@@ -29,7 +29,16 @@ jobs:
             git checkout -f "$RELEASE_TAG"
             npm install
             npm run build
+            sudo systemctl daemon-reload
             sudo systemctl restart lexo
-            sleep 2
-            curl -fsS http://127.0.0.1:3001/health
-            echo
+            for i in $(seq 1 60); do
+              if curl -fsS --max-time 2 http://127.0.0.1:3001/health; then
+                echo
+                exit 0
+              fi
+              sleep 1
+            done
+            echo "lexo n'a pas répondu sur :3001"
+            sudo systemctl status lexo --no-pager || true
+            sudo journalctl -u lexo -n 80 --no-pager || true
+            exit 1
