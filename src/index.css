@@ -314,24 +314,6 @@ button {
   }
 }
 
-.room-code {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  background: rgba(8, 36, 33, 0.72);
-  border: 1px solid var(--line);
-  border-radius: 24px;
-  padding: 16px 18px;
-}
-
-.room-code b {
-  font-family: var(--font-dice);
-  font-size: 34px;
-  letter-spacing: 0.28em;
-  color: var(--gold);
-}
-
 .players {
   display: grid;
   gap: 8px;
