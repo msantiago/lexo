@@ -1,0 +1,7 @@
+Le dictionnaire de Lexo est dérivé du lexique des formes fléchies
+Grammalecte / Dicollecte v7.7 (variante Classique).
+
+Auteur : Olivier R. et contributeurs Dicollecte
+Source : https://grammalecte.net/
+Licence : Mozilla Public License 2.0
+         https://www.mozilla.org/MPL/2.0/

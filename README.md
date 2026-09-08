@@ -2,6 +2,8 @@
 
 Jeu de lettres en temps réel (React, Express, Socket.IO).
 
+Le dictionnaire vient du lexique Grammalecte / Dicollecte 7.7 (variante Classique, MPL-2.0). Pour le régénérer : `npm run build:dict`.
+
 En production : `npm run build` puis `npm start`. Le serveur sert le front et les WebSockets sur le même port (`PORT`, défaut 3001).
 
 ## Release → VM Oracle
