@@ -13,28 +13,10 @@ type Props = {
 };
 
 export default function Lobby({ room, isHost, onSettings, onStart, onLeave }: Props) {
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(room.code);
-    } catch {
-      /* ignore */
-    }
-  };
-
   return (
     <div className="screen lobby">
       <div>
-        <div className="room-code">
-          <div>
-            <div className="muted">Code du salon</div>
-            <b>{room.code}</b>
-          </div>
-          <button className="btn btn-ivory" type="button" onClick={copy}>
-            Copier
-          </button>
-        </div>
-
-        <section className="card" style={{ marginTop: 16 }}>
+        <section className="card">
           <h2>Autour de la table</h2>
           <div className="players">
             {room.players.map((p) => (
