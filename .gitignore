@@ -4,6 +4,8 @@ dist
 *.log
 .vite
 data/custom-words.json
+data/auth.sqlite
+data/auth.sqlite-*
 data/src/
 .env
 .env.*
