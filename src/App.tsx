@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { GameSettings, RoomView } from "@shared/types";
 import Home from "./screens/Home";
@@ -21,11 +21,18 @@ function loadSession(): Session | null {
   }
 }
 
+function sameSession(a: Session | null, b: Session | null) {
+  return Boolean(a && b && a.code === b.code && a.playerId === b.playerId);
+}
+
 export default function App() {
   const [name, setName] = useState(() => localStorage.getItem("lexo:name") ?? "");
   const [room, setRoom] = useState<RoomView | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(() => loadSession()?.playerId ?? null);
   const [toast, setToast] = useState<string | null>(null);
+  const roomRef = useRef<RoomView | null>(null);
+  const pendingRejoin = useRef<Session | null>(null);
+  roomRef.current = room;
 
   useEffect(() => {
     localStorage.setItem("lexo:name", name);
@@ -34,30 +41,43 @@ export default function App() {
   useEffect(() => {
     const onState = (next: RoomView) => setRoom(next);
     const onSession = (session: Session) => {
+      pendingRejoin.current = null;
       setPlayerId(session.playerId);
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
     };
     const onError = ({ message }: { message: string }) => {
-      setToast(message);
       if (message === "Salon introuvable" || message === "Joueur introuvable") {
-        sessionStorage.removeItem(SESSION_KEY);
-        setRoom(null);
-        setPlayerId(null);
+        const attempted = pendingRejoin.current;
+        pendingRejoin.current = null;
+        if (roomRef.current) return;
+        if (sameSession(attempted, loadSession())) {
+          sessionStorage.removeItem(SESSION_KEY);
+          setRoom(null);
+          setPlayerId(null);
+        }
+        return;
       }
+      setToast(message);
       window.setTimeout(() => setToast(null), 2800);
     };
+    const tryRejoin = () => {
+      const existing = loadSession();
+      pendingRejoin.current = existing;
+      if (existing) socket.emit("room:rejoin", existing);
+    };
+
     socket.on("room:state", onState);
     socket.on("session", onSession);
     socket.on("notice", onError);
-
-    const existing = loadSession();
-    if (existing) socket.emit("room:rejoin", existing);
+    socket.on("connect", tryRejoin);
+    if (socket.connected) tryRejoin();
     const stopUnlock = installAudioUnlock();
 
     return () => {
       socket.off("room:state", onState);
       socket.off("session", onSession);
       socket.off("notice", onError);
+      socket.off("connect", tryRejoin);
       stopUnlock();
     };
   }, []);

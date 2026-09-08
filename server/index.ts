@@ -31,6 +31,8 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: { origin: true, methods: ["GET", "POST"] },
+  pingInterval: 10_000,
+  pingTimeout: 10_000,
 });
 
 app.get("/health", (_req, res) => {

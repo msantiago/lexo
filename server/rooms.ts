@@ -29,6 +29,7 @@ type Player = {
   name: string;
   color: string;
   socketId: string | null;
+  disconnectedAt: number | null;
   words: FoundWord[];
   roundScore: number;
   totalScore: number;
@@ -65,8 +66,18 @@ type Room = {
 };
 
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+/** Keep a seat after a drop so a page refresh can rejoin; then reap the room. */
+export const DISCONNECT_GRACE_MS = 30_000;
 const rooms = new Map<string, Room>();
 const socketRoom = new Map<string, string>();
+
+function isConnected(player: Player) {
+  return player.socketId !== null;
+}
+
+function hasConnectedPlayers(room: Room) {
+  return room.players.some(isConnected);
+}
 
 function makeCode(): string {
   for (let attempt = 0; attempt < 50; attempt++) {
@@ -260,7 +271,7 @@ export function setLobbyBroadcast(fn: LobbyBroadcast) {
 
 export function listPublicRooms(): LobbyRoom[] {
   return [...rooms.values()]
-    .filter((room) => !room.solo)
+    .filter((room) => !room.solo && hasConnectedPlayers(room))
     .map((room) => ({
       code: room.code,
       phase: room.phase,
@@ -324,27 +335,68 @@ function finishRound(room: Room) {
   room.possibleCount = all.length;
   room.missed = all.filter((word) => !room.foundBy.has(word.key));
   emitState(room);
-  if (room.players.every((p) => p.socketId === null)) {
-    rooms.delete(room.code);
-    notifyLobby();
+}
+
+function destroyRoom(room: Room) {
+  clearTimer(room);
+  clearRerollTimer(room);
+  for (const player of room.players) {
+    if (player.socketId) socketRoom.delete(player.socketId);
+  }
+  rooms.delete(room.code);
+  notifyLobby();
+}
+
+function isAbandoned(player: Player, now: number) {
+  return (
+    !isConnected(player) &&
+    player.disconnectedAt !== null &&
+    now - player.disconnectedAt >= DISCONNECT_GRACE_MS
+  );
+}
+
+function reapStalePlayers(now: number) {
+  for (const room of [...rooms.values()]) {
+    const stale = room.players.filter((player) => isAbandoned(player, now));
+    if (stale.length === 0) continue;
+    if (stale.length === room.players.length) {
+      destroyRoom(room);
+      continue;
+    }
+    for (const player of stale) {
+      if (!rooms.has(room.code)) break;
+      removePlayer(room, player);
+    }
   }
 }
 
 setInterval(() => {
-  for (const room of rooms.values()) {
-    if (room.phase === "playing" && room.endsAt && Date.now() >= room.endsAt) {
+  const now = Date.now();
+  for (const room of [...rooms.values()]) {
+    if (room.phase === "playing" && room.endsAt && now >= room.endsAt) {
       finishRound(room);
     }
   }
+  reapStalePlayers(now);
 }, 200);
 
+function abandonCurrentSeat(socketId: string) {
+  const room = getRoomBySocket(socketId);
+  if (!room) return;
+  const player = room.players.find((p) => p.socketId === socketId);
+  socketRoom.delete(socketId);
+  if (player) removePlayer(room, player);
+}
+
 export function createRoom(socketId: string, name: string, solo = false) {
+  abandonCurrentSeat(socketId);
   const code = makeCode();
   const player: Player = {
     id: makeId(),
     name: sanitizeName(name),
     color: PLAYER_COLORS[0],
     socketId,
+    disconnectedAt: null,
     words: [],
     roundScore: 0,
     totalScore: 0,
@@ -378,6 +430,11 @@ export function createRoom(socketId: string, name: string, solo = false) {
 export function joinRoom(socketId: string, code: string, name: string) {
   const room = rooms.get(code.trim().toUpperCase());
   if (!room) return { error: "Salon introuvable" as const };
+  if (getRoomBySocket(socketId)?.code === room.code) {
+    const you = room.players.find((p) => p.socketId === socketId);
+    if (you) return { room, playerId: you.id };
+  }
+  abandonCurrentSeat(socketId);
   if (room.players.length >= MAX_PLAYERS) {
     return { error: "Ce salon est complet (10 joueurs)" as const };
   }
@@ -390,6 +447,7 @@ export function joinRoom(socketId: string, code: string, name: string) {
     name: playerName,
     color: nextColor(room),
     socketId,
+    disconnectedAt: null,
     words: [],
     roundScore: 0,
     totalScore: 0,
@@ -409,19 +467,18 @@ export function rejoinRoom(socketId: string, code: string, playerId: string) {
     socketRoom.delete(player.socketId);
   }
   player.socketId = socketId;
+  player.disconnectedAt = null;
   socketRoom.set(socketId, room.code);
   emitState(room);
   return { room, playerId: player.id };
 }
 
 function removePlayer(room: Room, player: Player) {
+  if (player.socketId) socketRoom.delete(player.socketId);
   room.players = room.players.filter((p) => p.id !== player.id);
   room.rerollVotes.delete(player.id);
   if (room.players.length === 0) {
-    clearTimer(room);
-    clearRerollTimer(room);
-    rooms.delete(room.code);
-    notifyLobby();
+    destroyRoom(room);
     return;
   }
   if (room.hostId === player.id) {
@@ -437,13 +494,9 @@ export function leaveSocket(socketId: string) {
   socketRoom.delete(socketId);
   if (!player) return;
 
-  if (room.phase === "playing") {
-    player.socketId = null;
-    emitState(room);
-    return;
-  }
-
-  removePlayer(room, player);
+  player.socketId = null;
+  player.disconnectedAt = Date.now();
+  emitState(room);
 }
 
 /** Intentional quit: leave the table even mid-round. */
