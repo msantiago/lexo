@@ -32,6 +32,19 @@ export default function Results({ room, isHost, onNext, onLeave }: Props) {
             </>
           ) : null}
         </p>
+        {room.you.earnedBadges.length > 0 && (
+          <ul className="earned-badges">
+            {room.you.earnedBadges.map((badge) => (
+              <li key={badge.id} className="earned-badge">
+                <span aria-hidden>{badge.icon}</span>
+                <div>
+                  <strong>{badge.title}</strong>
+                  <p>{badge.description}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="results-layout">

@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { MAX_PLAYERS, foldPlayerName, type LobbyRoom } from "@shared/types";
 import { difficultyLabel, phaseLabel } from "@shared/rules";
+import AccountPanel from "../components/AccountPanel";
 import FloatingLetters from "../components/FloatingLetters";
 import LexoLogo from "../components/LexoLogo";
 import { unlockAudio } from "../lib/sfx";
+import { authClient } from "../lib/auth-client";
 import { socket } from "../socket";
+import Profile from "./Profile";
 
 type Props = {
   name: string;
@@ -16,6 +19,8 @@ type Props = {
 
 export default function Home({ name, onName, onSolo, onCreate, onJoin }: Props) {
   const [rooms, setRooms] = useState<LobbyRoom[]>([]);
+  const [page, setPage] = useState<"play" | "profile">("play");
+  const { data: session } = authClient.useSession();
   const ready = name.trim().length > 0;
 
   useEffect(() => {
@@ -27,24 +32,40 @@ export default function Home({ name, onName, onSolo, onCreate, onJoin }: Props) 
     };
   }, []);
 
+  const showProfile = page === "profile" && Boolean(session?.user);
+
   return (
-    <div className="screen home">
+    <div className={`screen home ${showProfile ? "home-profile" : ""}`}>
       <FloatingLetters />
-      <div className="logo">
-        <LexoLogo />
-        <p>Les mots sont sur la table</p>
-      </div>
-      <div className="panel">
-        <div className="field">
-          <label htmlFor="name">Ton prénom</label>
-          <input
-            id="name"
-            maxLength={16}
-            placeholder="Alex"
-            value={name}
-            onChange={(e) => onName(e.target.value)}
+      {!showProfile && (
+        <>
+          <div className="logo">
+            <LexoLogo />
+            <p>Les mots sont sur la table</p>
+          </div>
+          <AccountPanel
+            onDisplayName={onName}
+            onOpenProfile={session?.user ? () => setPage("profile") : undefined}
           />
-        </div>
+        </>
+      )}
+      {showProfile ? (
+        <Profile onBack={() => setPage("play")} onDisplayName={onName} />
+      ) : (
+        <>
+      <div className="panel">
+        {!session?.user && (
+          <div className="field">
+            <label htmlFor="name">Ton prénom</label>
+            <input
+              id="name"
+              maxLength={16}
+              placeholder="Alex"
+              value={name}
+              onChange={(e) => onName(e.target.value)}
+            />
+          </div>
+        )}
         <div className="btn-row">
           <button
             className="btn btn-gold"
@@ -67,7 +88,11 @@ export default function Home({ name, onName, onSolo, onCreate, onJoin }: Props) 
             Créer un salon
           </button>
         </div>
-        <p className="hint">Jusqu’à 10 joueurs · grille 4×4 · chrono en direct</p>
+        <p className="hint">
+          {session?.user
+            ? `Tu joueras en tant que ${name.trim() || "…"} · jusqu’à 10 joueurs · grille 4×4`
+            : "Jusqu’à 10 joueurs · grille 4×4 · chrono en direct"}
+        </p>
       </div>
 
       <section className="lobby-list" aria-live="polite">
@@ -96,6 +121,8 @@ export default function Home({ name, onName, onSolo, onCreate, onJoin }: Props) 
           </ul>
         )}
       </section>
+        </>
+      )}
       <footer className="credits">Créé par Marc-Antoine Santiago — septembre 2026</footer>
     </div>
   );

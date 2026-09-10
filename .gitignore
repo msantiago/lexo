@@ -6,8 +6,11 @@ dist
 data/custom-words.json
 data/auth.sqlite
 data/auth.sqlite-*
+data/lexo.sqlite
+data/lexo.sqlite-*
 data/src/
 .env
 .env.*
+!.env.example
 .deploy
 *.pem

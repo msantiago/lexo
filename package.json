@@ -12,14 +12,19 @@
     "build:dict": "node scripts/build-dict.mjs"
   },
   "dependencies": {
+    "better-auth": "^1.7.2",
+    "better-sqlite3": "^12.11.1",
+    "dotenv": "^17.4.2",
     "express": "^5.1.0",
     "framer-motion": "^12.23.12",
+    "jose": "^6.2.11",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
     "@types/express": "^5.0.3",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
