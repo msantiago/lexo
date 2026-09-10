@@ -72,6 +72,14 @@ export default function App() {
       setToast(message);
       window.setTimeout(() => setToast(null), 2800);
     };
+    const onReplaced = () => {
+      pendingRejoin.current = null;
+      sessionStorage.removeItem(SESSION_KEY);
+      setRoom(null);
+      setPlayerId(null);
+      setToast("Ce compte joue sur un autre appareil");
+      window.setTimeout(() => setToast(null), 3500);
+    };
     const tryRejoin = () => {
       if (isLegalPath(window.location.pathname)) return;
       const existing = loadSession();
@@ -81,6 +89,7 @@ export default function App() {
 
     socket.on("room:state", onState);
     socket.on("session", onSession);
+    socket.on("session:replaced", onReplaced);
     socket.on("notice", onError);
     socket.on("connect", tryRejoin);
     if (socket.connected) tryRejoin();
@@ -89,6 +98,7 @@ export default function App() {
     return () => {
       socket.off("room:state", onState);
       socket.off("session", onSession);
+      socket.off("session:replaced", onReplaced);
       socket.off("notice", onError);
       socket.off("connect", tryRejoin);
       stopUnlock();
@@ -98,10 +108,10 @@ export default function App() {
   const leave = () => {
     socket.emit("room:leave");
     sessionStorage.removeItem(SESSION_KEY);
+    pendingRejoin.current = null;
     setRoom(null);
     setPlayerId(null);
-    socket.disconnect();
-    socket.connect();
+    socket.emit("lobby:list");
   };
 
   const isHost = Boolean(room && playerId && room.hostId === playerId);

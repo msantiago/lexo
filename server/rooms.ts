@@ -418,14 +418,28 @@ function persistRound(room: Room) {
   }
 }
 
-function evacuateUser(userId: string, exceptCode?: string) {
+function evacuateUser(userId: string, exceptCode?: string): string[] {
+  const kicked: string[] = [];
   for (const room of [...rooms.values()]) {
     if (exceptCode && room.code === exceptCode) continue;
     const player = room.players.find((p) => p.userId === userId);
     if (!player) continue;
-    if (player.socketId) socketRoom.delete(player.socketId);
+    if (player.socketId) {
+      kicked.push(player.socketId);
+      socketRoom.delete(player.socketId);
+    }
     removePlayer(room, player);
   }
+  return kicked;
+}
+
+function claimSeat(room: Room, player: Player, socketId: string): string | null {
+  const previous = player.socketId && player.socketId !== socketId ? player.socketId : null;
+  if (previous) socketRoom.delete(previous);
+  player.socketId = socketId;
+  player.disconnectedAt = null;
+  socketRoom.set(socketId, room.code);
+  return previous;
 }
 
 function makePlayer(
@@ -458,7 +472,7 @@ function abandonCurrentSeat(socketId: string) {
 
 export function createRoom(socketId: string, name: string, solo = false, userId: string | null = null) {
   abandonCurrentSeat(socketId);
-  if (userId) evacuateUser(userId);
+  const replacedSocketIds = userId ? evacuateUser(userId) : [];
   const code = makeCode();
   const player = makePlayer(socketId, sanitizeName(name), PLAYER_COLORS[0], userId);
   const room: Room = {
@@ -485,7 +499,7 @@ export function createRoom(socketId: string, name: string, solo = false, userId:
   rooms.set(code, room);
   socketRoom.set(socketId, code);
   notifyLobby();
-  return { room, playerId: player.id };
+  return { room, playerId: player.id, replacedSocketIds };
 }
 
 export function joinRoom(socketId: string, code: string, name: string, userId: string | null = null) {
@@ -493,23 +507,34 @@ export function joinRoom(socketId: string, code: string, name: string, userId: s
   if (!room) return { error: "Salon introuvable" as const };
   if (getRoomBySocket(socketId)?.code === room.code) {
     const you = room.players.find((p) => p.socketId === socketId);
-    if (you) return { room, playerId: you.id };
+    if (you) return { room, playerId: you.id, replacedSocketIds: [] as string[] };
   }
   abandonCurrentSeat(socketId);
   if (userId) {
     const existing = room.players.find((p) => p.userId === userId);
     if (existing) {
-      evacuateUser(userId, room.code);
-      if (existing.socketId && existing.socketId !== socketId) {
-        socketRoom.delete(existing.socketId);
-      }
-      existing.socketId = socketId;
-      existing.disconnectedAt = null;
-      socketRoom.set(socketId, room.code);
+      const extra = evacuateUser(userId, room.code);
+      const replaced = claimSeat(room, existing, socketId);
       emitState(room);
-      return { room, playerId: existing.id };
+      return {
+        room,
+        playerId: existing.id,
+        replacedSocketIds: [...extra, ...(replaced ? [replaced] : [])],
+      };
     }
-    evacuateUser(userId);
+    const replacedSocketIds = evacuateUser(userId);
+    if (room.players.length >= MAX_PLAYERS) {
+      return { error: "Ce salon est complet (10 joueurs)" as const };
+    }
+    const playerName = sanitizeName(name);
+    if (room.players.some((p) => foldPlayerName(p.name) === foldPlayerName(playerName))) {
+      return { error: "Ce prénom est déjà pris dans ce salon" as const };
+    }
+    const player = makePlayer(socketId, playerName, nextColor(room), userId);
+    room.players.push(player);
+    socketRoom.set(socketId, room.code);
+    emitState(room);
+    return { room, playerId: player.id, replacedSocketIds };
   }
   if (room.players.length >= MAX_PLAYERS) {
     return { error: "Ce salon est complet (10 joueurs)" as const };
@@ -522,7 +547,7 @@ export function joinRoom(socketId: string, code: string, name: string, userId: s
   room.players.push(player);
   socketRoom.set(socketId, room.code);
   emitState(room);
-  return { room, playerId: player.id };
+  return { room, playerId: player.id, replacedSocketIds: [] as string[] };
 }
 
 export function rejoinRoom(socketId: string, code: string, playerId: string, userId: string | null = null) {
@@ -530,29 +555,27 @@ export function rejoinRoom(socketId: string, code: string, playerId: string, use
   if (!room) return { error: "Salon introuvable" as const };
   const player = room.players.find((p) => p.id === playerId);
   if (!player) return { error: "Joueur introuvable" as const };
-  if (player.socketId && player.socketId !== socketId) {
-    socketRoom.delete(player.socketId);
-  }
-  player.socketId = socketId;
-  player.disconnectedAt = null;
+  const replacedSocketId = claimSeat(room, player, socketId);
   if (userId && !player.userId) player.userId = userId;
-  socketRoom.set(socketId, room.code);
   emitState(room);
-  return { room, playerId: player.id };
+  return {
+    room,
+    playerId: player.id,
+    replacedSocketIds: replacedSocketId ? [replacedSocketId] : [],
+  };
 }
 
 export function rejoinByUserId(socketId: string, userId: string) {
   for (const room of rooms.values()) {
     const player = room.players.find((p) => p.userId === userId);
     if (!player) continue;
-    if (player.socketId && player.socketId !== socketId) {
-      socketRoom.delete(player.socketId);
-    }
-    player.socketId = socketId;
-    player.disconnectedAt = null;
-    socketRoom.set(socketId, room.code);
+    const replacedSocketId = claimSeat(room, player, socketId);
     emitState(room);
-    return { room, playerId: player.id };
+    return {
+      room,
+      playerId: player.id,
+      replacedSocketIds: replacedSocketId ? [replacedSocketId] : [],
+    };
   }
   return null;
 }
@@ -584,13 +607,19 @@ export function leaveSocket(socketId: string) {
 }
 
 /** Intentional quit: leave the table even mid-round. */
-export function leaveRoom(socketId: string) {
+export function leaveRoom(socketId: string, userId: string | null = null) {
   const room = getRoomBySocket(socketId);
-  if (!room) return;
-  const player = room.players.find((p) => p.socketId === socketId);
-  socketRoom.delete(socketId);
-  if (!player) return;
-  removePlayer(room, player);
+  if (room) {
+    const player = room.players.find((p) => p.socketId === socketId);
+    socketRoom.delete(socketId);
+    if (player) removePlayer(room, player);
+    return;
+  }
+  if (!userId) return;
+  for (const open of [...rooms.values()]) {
+    const stranded = open.players.find((p) => p.userId === userId && !isConnected(p));
+    if (stranded) removePlayer(open, stranded);
+  }
 }
 
 export function updateSettings(socketId: string, settings: Partial<GameSettings>) {

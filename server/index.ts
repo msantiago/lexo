@@ -106,6 +106,12 @@ setLobbyBroadcast((rooms) => {
   io.emit("lobby:rooms", rooms);
 });
 
+function notifyReplaced(socketIds: string[] | undefined) {
+  for (const id of socketIds ?? []) {
+    io.to(id).emit("session:replaced");
+  }
+}
+
 io.on("connection", async (socket) => {
   const session = await sessionFromHeaders(socket.handshake.headers);
   const userId = session?.user.id ?? null;
@@ -115,6 +121,7 @@ io.on("connection", async (socket) => {
   if (userId) {
     const rejoined = rejoinByUserId(socket.id, userId);
     if (rejoined) {
+      notifyReplaced(rejoined.replacedSocketIds);
       socket.emit("session", { playerId: rejoined.playerId, code: rejoined.room.code });
       socket.emit("room:state", viewFor(rejoined.room, rejoined.playerId));
     }
@@ -126,7 +133,13 @@ io.on("connection", async (socket) => {
 
   socket.on("room:create", ({ name, solo }: { name?: string; solo?: boolean }) => {
     try {
-      const { room, playerId } = createRoom(socket.id, name ?? "", Boolean(solo), userIdOf(socket));
+      const { room, playerId, replacedSocketIds } = createRoom(
+        socket.id,
+        name ?? "",
+        Boolean(solo),
+        userIdOf(socket),
+      );
+      notifyReplaced(replacedSocketIds);
       socket.emit("session", { playerId, code: room.code });
       socket.emit("room:state", viewFor(room, playerId));
     } catch (err) {
@@ -141,6 +154,7 @@ io.on("connection", async (socket) => {
       socket.emit("notice", { message: result.error });
       return;
     }
+    notifyReplaced(result.replacedSocketIds);
     socket.emit("session", { playerId: result.playerId, code: result.room.code });
     socket.emit("room:state", viewFor(result.room, result.playerId));
   });
@@ -153,6 +167,7 @@ io.on("connection", async (socket) => {
         socket.emit("notice", { message: result.error });
         return;
       }
+      notifyReplaced(result.replacedSocketIds);
       socket.emit("session", { playerId: result.playerId, code: result.room.code });
       socket.emit("room:state", viewFor(result.room, result.playerId));
     },
@@ -184,7 +199,7 @@ io.on("connection", async (socket) => {
   });
 
   socket.on("room:leave", () => {
-    leaveRoom(socket.id);
+    leaveRoom(socket.id, userIdOf(socket));
   });
 
   socket.on("disconnect", () => {

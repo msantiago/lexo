@@ -5,6 +5,7 @@ export type ServerToClient = {
   "room:state": (room: RoomView) => void;
   "lobby:rooms": (rooms: LobbyRoom[]) => void;
   session: (data: { playerId: string; code: string }) => void;
+  "session:replaced": () => void;
   "word:result": (result: WordSubmitResult) => void;
   "word:shared": (data: { key: string }) => void;
   notice: (data: { message: string }) => void;
