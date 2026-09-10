@@ -31,4 +31,5 @@ const socketUrl =
 export const socket: Socket<ServerToClient, ClientToServer> = io(socketUrl, {
   autoConnect: true,
   transports: ["websocket", "polling"],
+  withCredentials: true,
 });

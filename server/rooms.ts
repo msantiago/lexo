@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import type { BadgeDef } from "../shared/badges.ts";
 import {
   DEFAULT_SETTINGS,
   MAX_PLAYERS,
@@ -23,6 +24,7 @@ import {
 import { isValidPath, pathToWord, wordPoints } from "../shared/dice.ts";
 import { addCustomWord, lookupWord } from "./dictionary.ts";
 import { findAllWords, rollPlayableGrid } from "./solver.ts";
+import { awardLexicographer, recordFinishedRound, type RoundSnapshot } from "./store.ts";
 
 type Player = {
   id: string;
@@ -30,9 +32,11 @@ type Player = {
   color: string;
   socketId: string | null;
   disconnectedAt: number | null;
+  userId: string | null;
   words: FoundWord[];
   roundScore: number;
   totalScore: number;
+  earnedBadges: BadgeDef[];
 };
 
 type RejectedAttempt = {
@@ -45,6 +49,7 @@ type RejectedAttempt = {
 type Room = {
   code: string;
   hostId: string;
+  persistedId: string | null;
   /** Hidden from the public lobby list (partie solo). */
   solo: boolean;
   phase: Phase;
@@ -239,6 +244,7 @@ export function viewFor(room: Room, playerId: string): RoomView {
     you: {
       id: playerId,
       words: you?.words ?? [],
+      earnedBadges: you?.earnedBadges ?? [],
     },
     recap: recap(room),
     summary: roundSummary(room),
@@ -334,6 +340,7 @@ function finishRound(room: Room) {
         : [];
   room.possibleCount = all.length;
   room.missed = all.filter((word) => !room.foundBy.has(word.key));
+  persistRound(room);
   emitState(room);
 }
 
@@ -380,6 +387,67 @@ setInterval(() => {
   reapStalePlayers(now);
 }, 200);
 
+function persistRound(room: Room) {
+  if (!room.players.some((p) => p.userId)) return;
+  const snap: RoundSnapshot = {
+    gameId: room.persistedId,
+    code: room.code,
+    solo: room.solo || isSolo(room),
+    round: room.round,
+    settings: room.settings,
+    grid: room.grid,
+    startedAt: room.startedAt,
+    endedAt: room.endsAt ?? Date.now(),
+    recap: recap(room) ?? [],
+    summary: roundSummary(room),
+    players: room.players.map((p) => ({
+      id: p.id,
+      userId: p.userId,
+      name: p.name,
+      color: p.color,
+      roundScore: p.roundScore,
+      totalScore: p.totalScore,
+      words: p.words,
+      isHost: p.id === room.hostId,
+    })),
+  };
+  const result = recordFinishedRound(snap);
+  room.persistedId = result.gameId;
+  for (const player of room.players) {
+    player.earnedBadges = player.userId ? (result.earned.get(player.userId) ?? []) : [];
+  }
+}
+
+function evacuateUser(userId: string, exceptCode?: string) {
+  for (const room of [...rooms.values()]) {
+    if (exceptCode && room.code === exceptCode) continue;
+    const player = room.players.find((p) => p.userId === userId);
+    if (!player) continue;
+    if (player.socketId) socketRoom.delete(player.socketId);
+    removePlayer(room, player);
+  }
+}
+
+function makePlayer(
+  socketId: string,
+  name: string,
+  color: string,
+  userId: string | null,
+): Player {
+  return {
+    id: makeId(),
+    name,
+    color,
+    socketId,
+    disconnectedAt: null,
+    userId,
+    words: [],
+    roundScore: 0,
+    totalScore: 0,
+    earnedBadges: [],
+  };
+}
+
 function abandonCurrentSeat(socketId: string) {
   const room = getRoomBySocket(socketId);
   if (!room) return;
@@ -388,22 +456,15 @@ function abandonCurrentSeat(socketId: string) {
   if (player) removePlayer(room, player);
 }
 
-export function createRoom(socketId: string, name: string, solo = false) {
+export function createRoom(socketId: string, name: string, solo = false, userId: string | null = null) {
   abandonCurrentSeat(socketId);
+  if (userId) evacuateUser(userId);
   const code = makeCode();
-  const player: Player = {
-    id: makeId(),
-    name: sanitizeName(name),
-    color: PLAYER_COLORS[0],
-    socketId,
-    disconnectedAt: null,
-    words: [],
-    roundScore: 0,
-    totalScore: 0,
-  };
+  const player = makePlayer(socketId, sanitizeName(name), PLAYER_COLORS[0], userId);
   const room: Room = {
     code,
     hostId: player.id,
+    persistedId: null,
     solo,
     phase: "lobby",
     round: 0,
@@ -427,7 +488,7 @@ export function createRoom(socketId: string, name: string, solo = false) {
   return { room, playerId: player.id };
 }
 
-export function joinRoom(socketId: string, code: string, name: string) {
+export function joinRoom(socketId: string, code: string, name: string, userId: string | null = null) {
   const room = rooms.get(code.trim().toUpperCase());
   if (!room) return { error: "Salon introuvable" as const };
   if (getRoomBySocket(socketId)?.code === room.code) {
@@ -435,6 +496,21 @@ export function joinRoom(socketId: string, code: string, name: string) {
     if (you) return { room, playerId: you.id };
   }
   abandonCurrentSeat(socketId);
+  if (userId) {
+    const existing = room.players.find((p) => p.userId === userId);
+    if (existing) {
+      evacuateUser(userId, room.code);
+      if (existing.socketId && existing.socketId !== socketId) {
+        socketRoom.delete(existing.socketId);
+      }
+      existing.socketId = socketId;
+      existing.disconnectedAt = null;
+      socketRoom.set(socketId, room.code);
+      emitState(room);
+      return { room, playerId: existing.id };
+    }
+    evacuateUser(userId);
+  }
   if (room.players.length >= MAX_PLAYERS) {
     return { error: "Ce salon est complet (10 joueurs)" as const };
   }
@@ -442,23 +518,14 @@ export function joinRoom(socketId: string, code: string, name: string) {
   if (room.players.some((p) => foldPlayerName(p.name) === foldPlayerName(playerName))) {
     return { error: "Ce prénom est déjà pris dans ce salon" as const };
   }
-  const player: Player = {
-    id: makeId(),
-    name: playerName,
-    color: nextColor(room),
-    socketId,
-    disconnectedAt: null,
-    words: [],
-    roundScore: 0,
-    totalScore: 0,
-  };
+  const player = makePlayer(socketId, playerName, nextColor(room), userId);
   room.players.push(player);
   socketRoom.set(socketId, room.code);
   emitState(room);
   return { room, playerId: player.id };
 }
 
-export function rejoinRoom(socketId: string, code: string, playerId: string) {
+export function rejoinRoom(socketId: string, code: string, playerId: string, userId: string | null = null) {
   const room = rooms.get(code.trim().toUpperCase());
   if (!room) return { error: "Salon introuvable" as const };
   const player = room.players.find((p) => p.id === playerId);
@@ -468,9 +535,26 @@ export function rejoinRoom(socketId: string, code: string, playerId: string) {
   }
   player.socketId = socketId;
   player.disconnectedAt = null;
+  if (userId && !player.userId) player.userId = userId;
   socketRoom.set(socketId, room.code);
   emitState(room);
   return { room, playerId: player.id };
+}
+
+export function rejoinByUserId(socketId: string, userId: string) {
+  for (const room of rooms.values()) {
+    const player = room.players.find((p) => p.userId === userId);
+    if (!player) continue;
+    if (player.socketId && player.socketId !== socketId) {
+      socketRoom.delete(player.socketId);
+    }
+    player.socketId = socketId;
+    player.disconnectedAt = null;
+    socketRoom.set(socketId, room.code);
+    emitState(room);
+    return { room, playerId: player.id };
+  }
+  return null;
 }
 
 function removePlayer(room: Room, player: Player) {
@@ -542,6 +626,7 @@ function beginRound(room: Room, incrementRound: boolean) {
   for (const p of room.players) {
     p.words = [];
     p.roundScore = 0;
+    p.earnedBadges = [];
   }
   room.timer = setTimeout(
     () => finishRound(room),
@@ -731,6 +816,10 @@ export function adoptRejectedWord(socketId: string, key: string) {
   }
   room.possibleCount = room.possibleWords.length;
   attempt.added = true;
+  if (player.userId) {
+    const extra = awardLexicographer(player.userId);
+    if (extra.length) player.earnedBadges = [...player.earnedBadges, ...extra];
+  }
   emitState(room);
   return { ok: true as const };
 }

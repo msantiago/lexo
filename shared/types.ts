@@ -1,3 +1,5 @@
+import type { BadgeDef } from "./badges.ts";
+
 export const MAX_PLAYERS = 10;
 
 /** Compare les prénoms sans tenir compte de la casse ni des espaces superflus. */
@@ -168,6 +170,7 @@ export type RoomView = {
   you: {
     id: string;
     words: FoundWord[];
+    earnedBadges: BadgeDef[];
   };
   recap: WordRecap[] | null;
   summary: RoundSummary | null;
