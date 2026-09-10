@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { GameSettings, RoomView } from "@shared/types";
 import Home from "./screens/Home";
+import { Privacy, Terms } from "./screens/Legal";
 import Lobby from "./screens/Lobby";
 import Play from "./screens/Play";
 import Results from "./screens/Results";
+import { isLegalPath, isPrivacyPath, isTermsPath } from "./lib/nav";
 import { socket } from "./socket";
 import { installAudioUnlock } from "./lib/sfx";
 
@@ -26,6 +28,7 @@ function sameSession(a: Session | null, b: Session | null) {
 }
 
 export default function App() {
+  const [path, setPath] = useState(() => window.location.pathname);
   const [name, setName] = useState(() => localStorage.getItem("lexo:name") ?? "");
   const [room, setRoom] = useState<RoomView | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(() => loadSession()?.playerId ?? null);
@@ -35,11 +38,20 @@ export default function App() {
   roomRef.current = room;
 
   useEffect(() => {
+    const sync = () => setPath(window.location.pathname);
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem("lexo:name", name);
   }, [name]);
 
   useEffect(() => {
-    const onState = (next: RoomView) => setRoom(next);
+    const onState = (next: RoomView) => {
+      if (isLegalPath(window.location.pathname)) return;
+      setRoom(next);
+    };
     const onSession = (session: Session) => {
       pendingRejoin.current = null;
       setPlayerId(session.playerId);
@@ -61,6 +73,7 @@ export default function App() {
       window.setTimeout(() => setToast(null), 2800);
     };
     const tryRejoin = () => {
+      if (isLegalPath(window.location.pathname)) return;
       const existing = loadSession();
       pendingRejoin.current = existing;
       if (existing) socket.emit("room:rejoin", existing);
@@ -92,6 +105,7 @@ export default function App() {
   };
 
   const isHost = Boolean(room && playerId && room.hostId === playerId);
+  const legal = isLegalPath(path);
 
   return (
     <div className="app">
@@ -109,7 +123,9 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {!room && (
+      {isPrivacyPath(path) && <Privacy />}
+      {isTermsPath(path) && <Terms />}
+      {!legal && !room && (
         <Home
           name={name}
           onName={setName}
@@ -118,7 +134,7 @@ export default function App() {
           onJoin={(code) => socket.emit("room:join", { code, name })}
         />
       )}
-      {room?.phase === "lobby" && (
+      {!legal && room?.phase === "lobby" && (
         <Lobby
           room={room}
           isHost={isHost}
@@ -127,8 +143,8 @@ export default function App() {
           onLeave={leave}
         />
       )}
-      {room?.phase === "playing" && <Play room={room} onLeave={leave} />}
-      {room?.phase === "results" && (
+      {!legal && room?.phase === "playing" && <Play room={room} onLeave={leave} />}
+      {!legal && room?.phase === "results" && (
         <Results
           room={room}
           isHost={isHost}
