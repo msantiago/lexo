@@ -64,13 +64,7 @@ function ChatLine({ message, youId }: { message: ChatMessage; youId: string }) {
           {message.name.slice(0, 1).toUpperCase()}
         </span>
         <span>
-          <strong style={{ color: message.color }}>{mine ? "Tu" : message.name}</strong>
-          {mine ? " aimes " : " aime "}
-          <em>{message.word.display}</em>
-          {" de "}
-          <strong style={{ color: message.word.ownerColor }}>
-            {message.word.ownerId === youId ? "toi" : message.word.ownerName}
-          </strong>
+          <LikeCopy message={message} youId={youId} />
         </span>
       </p>
     );
@@ -82,10 +76,8 @@ function ChatLine({ message, youId }: { message: ChatMessage; youId: string }) {
           {message.name.slice(0, 1).toUpperCase()}
         </span>
         <span>
-          <strong style={{ color: message.color }}>{mine ? "Tu" : message.name}</strong>
-          {mine ? " débloques " : " débloque "}
+          {mine ? "Tu as débloqué" : `${message.name} a débloqué`} le badge{" "}
           <span aria-hidden>{message.badge.icon}</span> <strong>{message.badge.title}</strong>
-          <small>{message.badge.description}</small>
         </span>
       </p>
     );
@@ -100,5 +92,26 @@ function ChatLine({ message, youId }: { message: ChatMessage; youId: string }) {
         <span className="chat-text">{message.text}</span>
       </span>
     </p>
+  );
+}
+
+function LikeCopy({ message, youId }: { message: ChatMessage; youId: string }) {
+  const word = message.word;
+  if (!word) return null;
+  const mine = message.playerId === youId;
+  const yours = word.ownerId === youId;
+  const who = mine ? "Tu aimes" : `${message.name} aime`;
+  const quoted = <em>{word.display}</em>;
+  if (yours) {
+    return (
+      <>
+        {who} ton mot {quoted}.
+      </>
+    );
+  }
+  return (
+    <>
+      {who} le mot {quoted} de {word.ownerName}.
+    </>
   );
 }

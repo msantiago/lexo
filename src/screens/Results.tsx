@@ -46,12 +46,9 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
         {room.you.earnedBadges.length > 0 && (
           <ul className="earned-badges">
             {room.you.earnedBadges.map((badge) => (
-              <li key={badge.id} className="earned-badge">
+              <li key={badge.id} className="earned-badge" title={badge.description}>
                 <span aria-hidden>{badge.icon}</span>
-                <div>
-                  <strong>{badge.title}</strong>
-                  <p>{badge.description}</p>
-                </div>
+                <strong>{badge.title}</strong>
               </li>
             ))}
           </ul>
@@ -114,7 +111,7 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
               </div>
             ))}
           </div>
-          <RoundChat room={room} />
+          {!solo && <RoundChat room={room} />}
         </div>
 
         <div>

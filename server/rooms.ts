@@ -244,25 +244,19 @@ function announceBadge(room: Room, player: Player, badge: BadgeDef) {
 }
 
 function announceResultsChat(room: Room) {
+  if (room.solo || isSolo(room)) return;
   const ranked = [...room.players].sort(
     (a, b) => b.roundScore - a.roundScore || b.totalScore - a.totalScore,
   );
   const winner = ranked[0];
-  if (winner && room.players.length > 1) {
+  if (winner) {
+    const pts = `${winner.roundScore} pt${winner.roundScore > 1 ? "s" : ""}`;
     pushChat(room, {
       kind: "system",
       playerId: null,
       name: "",
       color: "#e8b84a",
-      text: `${winner.name} remporte la manche ${room.round} · ${winner.roundScore} pt${winner.roundScore > 1 ? "s" : ""}`,
-    });
-  } else if (winner) {
-    pushChat(room, {
-      kind: "system",
-      playerId: null,
-      name: "",
-      color: "#e8b84a",
-      text: `Manche ${room.round} terminée · ${winner.roundScore} pt${winner.roundScore > 1 ? "s" : ""}`,
+      text: `${winner.name} gagne la manche ${room.round} (${pts}).`,
     });
   }
   for (const player of room.players) {
@@ -282,8 +276,8 @@ function sanitizeChat(raw: string) {
 
 export function sendChat(socketId: string, text: string) {
   const room = getRoomBySocket(socketId);
-  if (!room || room.phase !== "results") {
-    return { error: "Le chat s’ouvre à la synthèse de manche" as const };
+  if (!room || room.phase !== "results" || room.solo || isSolo(room)) {
+    return { error: "Le chat s’ouvre à la synthèse, en partie à plusieurs" as const };
   }
   const player = room.players.find((p) => p.socketId === socketId);
   if (!player) return { error: "Pas dans un salon" as const };
@@ -307,8 +301,8 @@ export function sendChat(socketId: string, text: string) {
 
 export function toggleWordLike(socketId: string, key: string) {
   const room = getRoomBySocket(socketId);
-  if (!room || room.phase !== "results") {
-    return { error: "Les likes s’ouvrent à la synthèse" as const };
+  if (!room || room.phase !== "results" || room.solo || isSolo(room)) {
+    return { error: "Les likes s’ouvrent à la synthèse, en partie à plusieurs" as const };
   }
   const player = room.players.find((p) => p.socketId === socketId);
   if (!player) return { error: "Pas dans un salon" as const };
@@ -1063,7 +1057,9 @@ export function adoptRejectedWord(socketId: string, key: string) {
     const extra = awardLexicographer(player.userId);
     if (extra.length) {
       player.earnedBadges = [...player.earnedBadges, ...extra];
-      for (const badge of extra) announceBadge(room, player, badge);
+      if (!room.solo && !isSolo(room)) {
+        for (const badge of extra) announceBadge(room, player, badge);
+      }
     }
   }
   emitState(room);

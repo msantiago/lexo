@@ -692,36 +692,32 @@ button {
 
 .earned-badges {
   list-style: none;
-  margin: 16px 0 0;
+  margin: 10px 0 0;
   padding: 0;
-  display: grid;
-  gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
 }
 
 .earned-badge {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 16px;
+  gap: 6px;
+  padding: 4px 10px 4px 8px;
+  border-radius: 999px;
   background: rgba(232, 184, 74, 0.16);
   border: 1px solid rgba(232, 184, 74, 0.35);
-  text-align: left;
 }
 
 .earned-badge span {
-  font-size: 26px;
+  font-size: 16px;
+  line-height: 1;
 }
 
 .earned-badge strong {
-  display: block;
-  font-size: 14px;
-}
-
-.earned-badge p {
-  margin: 0;
   font-size: 12px;
-  color: var(--gold-soft);
+  font-weight: 800;
 }
 
 @media (min-width: 820px) {
@@ -2213,7 +2209,7 @@ button {
 }
 
 .chat-line.badge {
-  padding: 8px 10px;
+  padding: 6px 10px;
   border-radius: 14px;
   background: rgba(232, 184, 74, 0.14);
   border: 1px solid rgba(232, 184, 74, 0.28);
@@ -2224,14 +2220,6 @@ button {
   font-style: normal;
   color: var(--gold);
   text-transform: lowercase;
-}
-
-.chat-line small {
-  display: block;
-  margin-top: 2px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--gold-soft);
 }
 
 .chat-avatar {
