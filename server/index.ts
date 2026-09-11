@@ -16,6 +16,8 @@ import {
   createRoom,
   joinRoom,
   leaveRoom,
+  sendChat,
+  toggleWordLike,
   leaveSocket,
   listPublicRooms,
   rejoinByUserId,
@@ -200,6 +202,16 @@ io.on("connection", async (socket) => {
 
   socket.on("dict:add", ({ key }: { key?: string }) => {
     const result = adoptRejectedWord(socket.id, key ?? "");
+    if (result && "error" in result) socket.emit("notice", { message: result.error });
+  });
+
+  socket.on("chat:send", ({ text }: { text?: string }) => {
+    const result = sendChat(socket.id, text ?? "");
+    if (result && "error" in result) socket.emit("notice", { message: result.error });
+  });
+
+  socket.on("chat:like", ({ key }: { key?: string }) => {
+    const result = toggleWordLike(socket.id, key ?? "");
     if (result && "error" in result) socket.emit("notice", { message: result.error });
   });
 

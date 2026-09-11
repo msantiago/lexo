@@ -7,6 +7,7 @@ import {
   REROLL_WINDOW_MS,
   foldPlayerName,
   type Cell,
+  type ChatMessage,
   type FoundWord,
   type GameSettings,
   type Phase,
@@ -37,6 +38,7 @@ type Player = {
   roundScore: number;
   totalScore: number;
   earnedBadges: BadgeDef[];
+  lastChatAt: number | null;
 };
 
 type RejectedAttempt = {
@@ -68,6 +70,8 @@ type Room = {
   timer: ReturnType<typeof setTimeout> | null;
   rerollVotes: Set<string>;
   rerollWindowTimer: ReturnType<typeof setTimeout> | null;
+  chat: ChatMessage[];
+  likes: Map<string, Set<string>>;
 };
 
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -174,6 +178,7 @@ function roundSummary(room: Room): RoundSummary | null {
         playerId: p.id,
         name: p.name,
         color: p.color,
+        likedBy: likesFor(room, key),
       });
     } else {
       shared.push({
@@ -181,6 +186,8 @@ function roundSummary(room: Room): RoundSummary | null {
         display: sample.display,
         letters: sample.letters,
         names: people.map((p) => ({ name: p.name, color: p.color })),
+        playerIds: people.map((p) => p.id),
+        likedBy: likesFor(room, key),
       });
     }
   }
@@ -204,6 +211,146 @@ function roundSummary(room: Room): RoundSummary | null {
     missed: room.missed,
     possibleCount: room.possibleCount,
   };
+}
+
+function likesFor(room: Room, key: string) {
+  return [...(room.likes.get(key) ?? [])]
+    .map((id) => room.players.find((p) => p.id === id))
+    .filter((p): p is Player => Boolean(p))
+    .map((p) => ({ playerId: p.id, name: p.name, color: p.color }));
+}
+
+const CHAT_MAX = 200;
+
+function pushChat(room: Room, message: Omit<ChatMessage, "id" | "at">) {
+  room.chat.push({
+    ...message,
+    id: makeId(),
+    at: Date.now(),
+  });
+  if (room.chat.length > CHAT_MAX) {
+    room.chat.splice(0, room.chat.length - CHAT_MAX);
+  }
+}
+
+function announceBadge(room: Room, player: Player, badge: BadgeDef) {
+  pushChat(room, {
+    kind: "badge",
+    playerId: player.id,
+    name: player.name,
+    color: player.color,
+    badge,
+  });
+}
+
+function announceResultsChat(room: Room) {
+  const ranked = [...room.players].sort(
+    (a, b) => b.roundScore - a.roundScore || b.totalScore - a.totalScore,
+  );
+  const winner = ranked[0];
+  if (winner && room.players.length > 1) {
+    pushChat(room, {
+      kind: "system",
+      playerId: null,
+      name: "",
+      color: "#e8b84a",
+      text: `${winner.name} remporte la manche ${room.round} · ${winner.roundScore} pt${winner.roundScore > 1 ? "s" : ""}`,
+    });
+  } else if (winner) {
+    pushChat(room, {
+      kind: "system",
+      playerId: null,
+      name: "",
+      color: "#e8b84a",
+      text: `Manche ${room.round} terminée · ${winner.roundScore} pt${winner.roundScore > 1 ? "s" : ""}`,
+    });
+  }
+  for (const player of room.players) {
+    for (const badge of player.earnedBadges) {
+      announceBadge(room, player, badge);
+    }
+  }
+}
+
+function sanitizeChat(raw: string) {
+  return raw
+    .replace(/[\u0000-\u001F\u007F]/g, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, 200);
+}
+
+export function sendChat(socketId: string, text: string) {
+  const room = getRoomBySocket(socketId);
+  if (!room || room.phase !== "results") {
+    return { error: "Le chat s’ouvre à la synthèse de manche" as const };
+  }
+  const player = room.players.find((p) => p.socketId === socketId);
+  if (!player) return { error: "Pas dans un salon" as const };
+  const now = Date.now();
+  if (player.lastChatAt && now - player.lastChatAt < 400) {
+    return { error: "Doucement…" as const };
+  }
+  const clean = sanitizeChat(text);
+  if (!clean) return { error: "Message vide" as const };
+  player.lastChatAt = now;
+  pushChat(room, {
+    kind: "text",
+    playerId: player.id,
+    name: player.name,
+    color: player.color,
+    text: clean,
+  });
+  emitState(room);
+  return { ok: true as const };
+}
+
+export function toggleWordLike(socketId: string, key: string) {
+  const room = getRoomBySocket(socketId);
+  if (!room || room.phase !== "results") {
+    return { error: "Les likes s’ouvrent à la synthèse" as const };
+  }
+  const player = room.players.find((p) => p.socketId === socketId);
+  if (!player) return { error: "Pas dans un salon" as const };
+  const folded = key.trim().toUpperCase();
+  const owners = room.foundBy.get(folded);
+  if (!owners || owners.size === 0) {
+    return { error: "Mot introuvable" as const };
+  }
+  if (owners.has(player.id)) {
+    return { error: "Tu ne peux pas liker un mot que tu as trouvé" as const };
+  }
+  const people = room.players.filter((p) => owners.has(p.id));
+  const sample = people.flatMap((p) => p.words.filter((w) => w.key === folded))[0];
+  const first = people[0];
+  if (!first || !sample) return { error: "Mot introuvable" as const };
+
+  const likers = room.likes.get(folded) ?? new Set<string>();
+  if (likers.has(player.id)) {
+    likers.delete(player.id);
+    room.chat = room.chat.filter(
+      (message) =>
+        !(message.kind === "like" && message.playerId === player.id && message.word?.key === folded),
+    );
+  } else {
+    likers.add(player.id);
+    pushChat(room, {
+      kind: "like",
+      playerId: player.id,
+      name: player.name,
+      color: player.color,
+      word: {
+        key: folded,
+        display: sample.display,
+        ownerId: first.id,
+        ownerName: people.map((p) => p.name).join(" et "),
+        ownerColor: first.color,
+      },
+    });
+  }
+  room.likes.set(folded, likers);
+  emitState(room);
+  return { ok: true as const };
 }
 
 function isSolo(room: Room) {
@@ -249,6 +396,7 @@ export function viewFor(room: Room, playerId: string): RoomView {
     recap: recap(room),
     summary: roundSummary(room),
     reroll: rerollView(room, playerId),
+    chat: room.chat ?? [],
   };
 }
 
@@ -342,6 +490,7 @@ function finishRound(room: Room) {
   room.possibleCount = all.length;
   room.missed = all.filter((word) => !room.foundBy.has(word.key));
   persistRound(room);
+  announceResultsChat(room);
   emitState(room);
 }
 
@@ -497,6 +646,7 @@ function makePlayer(
     roundScore: 0,
     totalScore: 0,
     earnedBadges: [],
+    lastChatAt: null,
   };
 }
 
@@ -533,6 +683,8 @@ export function createRoom(socketId: string, name: string, solo = false, userId:
     timer: null,
     rerollVotes: new Set(),
     rerollWindowTimer: null,
+    chat: [],
+    likes: new Map(),
   };
   rooms.set(code, room);
   socketRoom.set(socketId, code);
@@ -710,6 +862,7 @@ function beginRound(room: Room, incrementRound: boolean) {
   room.rejected = new Map();
   room.missed = [];
   room.rerollVotes = new Set();
+  room.likes = new Map();
   room.startedAt = Date.now();
   room.endsAt = room.startedAt + room.settings.durationSec * 1000;
   for (const p of room.players) {
@@ -908,7 +1061,10 @@ export function adoptRejectedWord(socketId: string, key: string) {
   attempt.added = true;
   if (player.userId) {
     const extra = awardLexicographer(player.userId);
-    if (extra.length) player.earnedBadges = [...player.earnedBadges, ...extra];
+    if (extra.length) {
+      player.earnedBadges = [...player.earnedBadges, ...extra];
+      for (const badge of extra) announceBadge(room, player, badge);
+    }
   }
   emitState(room);
   return { ok: true as const };

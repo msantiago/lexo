@@ -107,6 +107,12 @@ export type WordRecap = {
   roundScore: number;
 };
 
+export type WordLike = {
+  playerId: string;
+  name: string;
+  color: string;
+};
+
 export type SummaryWord = {
   key: string;
   display: string;
@@ -115,6 +121,25 @@ export type SummaryWord = {
   playerId: string;
   name: string;
   color: string;
+  likedBy: WordLike[];
+};
+
+export type ChatMessage = {
+  id: string;
+  at: number;
+  kind: "system" | "text" | "like" | "badge";
+  playerId: string | null;
+  name: string;
+  color: string;
+  text?: string;
+  word?: {
+    key: string;
+    display: string;
+    ownerId: string;
+    ownerName: string;
+    ownerColor: string;
+  };
+  badge?: BadgeDef;
 };
 
 export type SharedWord = {
@@ -122,6 +147,8 @@ export type SharedWord = {
   display: string;
   letters: number;
   names: { name: string; color: string }[];
+  playerIds: string[];
+  likedBy: WordLike[];
 };
 
 export type PossibleWord = {
@@ -176,6 +203,7 @@ export type RoomView = {
   recap: WordRecap[] | null;
   summary: RoundSummary | null;
   reroll: RerollView | null;
+  chat: ChatMessage[];
 };
 
 export type WordFailReason =

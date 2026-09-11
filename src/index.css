@@ -2167,3 +2167,145 @@ button {
     font-size: 26px;
   }
 }
+
+.results-chat {
+  margin-top: 16px;
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  max-height: min(70vh, 620px);
+}
+
+.results-chat h2 {
+  margin: 0;
+}
+
+.chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0 12px;
+  padding-right: 4px;
+  overflow: auto;
+  min-height: 140px;
+  max-height: min(42vh, 360px);
+}
+
+.chat-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.35;
+  font-weight: 700;
+}
+
+.chat-line.system {
+  display: block;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: var(--gold-soft);
+  padding: 4px 0;
+}
+
+.chat-line.badge {
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: rgba(232, 184, 74, 0.14);
+  border: 1px solid rgba(232, 184, 74, 0.28);
+}
+
+.chat-line.like em {
+  font-family: var(--font-dice);
+  font-style: normal;
+  color: var(--gold);
+  text-transform: lowercase;
+}
+
+.chat-line small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gold-soft);
+}
+
+.chat-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink);
+  flex: none;
+}
+
+.chat-text {
+  display: block;
+  color: var(--cream);
+  font-weight: 700;
+}
+
+.chat-form {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-form input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: var(--ivory);
+  color: var(--ink);
+  font-weight: 800;
+  outline: none;
+  box-shadow: inset 0 -3px 0 var(--ivory-dim);
+}
+
+.chat-form input:focus {
+  box-shadow:
+    inset 0 -3px 0 var(--gold),
+    0 0 0 3px rgba(232, 184, 74, 0.35);
+}
+
+.chat-form .btn {
+  padding: 10px 14px;
+}
+
+.word-tail {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 8px;
+  flex: none;
+}
+
+.word-like,
+.word-like-count {
+  border: 0;
+  background: rgba(255, 93, 74, 0.12);
+  color: var(--coral);
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.word-like.on {
+  background: var(--coral);
+  color: white;
+}
+
+.word-like-count {
+  background: rgba(232, 184, 74, 0.16);
+  color: var(--gold);
+}

@@ -25,6 +25,8 @@ export type ClientToServer = {
   "game:word": (data: { cells: number[] }) => void;
   "game:reroll": () => void;
   "dict:add": (data: { key: string }) => void;
+  "chat:send": (data: { text: string }) => void;
+  "chat:like": (data: { key: string }) => void;
 };
 
 const socketUrl =

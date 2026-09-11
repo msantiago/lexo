@@ -1,6 +1,15 @@
-import type { Cell, PossibleWord, RoundSummary, RoomView } from "@shared/types";
+import type {
+  Cell,
+  PossibleWord,
+  RoundSummary,
+  RoomView,
+  SharedWord,
+  SummaryWord,
+  WordLike,
+} from "@shared/types";
 import WordLink from "../components/WordLink";
 import LeaveButton from "../components/LeaveButton";
+import RoundChat from "../components/RoundChat";
 import { socket } from "../socket";
 
 type Props = {
@@ -105,6 +114,7 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
               </div>
             ))}
           </div>
+          <RoundChat room={room} />
         </div>
 
         <div>
@@ -121,16 +131,7 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
                   <h3 className="recap-title">Mots uniques</h3>
                   <ul className="words recap-words">
                     {summary.unique.map((w) => (
-                      <li key={w.key}>
-                        <span>
-                          <WordLink word={w.display} />
-                          <small className="word-owner" style={{ color: w.color }}>
-                            {" "}
-                            {w.name}
-                          </small>
-                        </span>
-                        <em>{w.points}</em>
-                      </li>
+                      <UniqueWordRow key={w.key} word={w} youId={room.you.id} canLike={!solo} />
                     ))}
                   </ul>
                 </>
@@ -141,16 +142,7 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
                   <h3 className="recap-title">Mots en commun (0 pt)</h3>
                   <ul className="words recap-words">
                     {summary.shared.map((w) => (
-                      <li key={w.key} className="shared">
-                        <span>
-                          <WordLink word={w.display} />
-                          <small className="word-owner">
-                            {" "}
-                            {w.names.map((n) => n.name).join(", ")}
-                          </small>
-                        </span>
-                        <em>0</em>
-                      </li>
+                      <SharedWordRow key={w.key} word={w} youId={room.you.id} canLike={!solo} />
                     ))}
                   </ul>
                 </>
@@ -197,6 +189,120 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
       </div>
     </div>
   );
+}
+
+function UniqueWordRow({
+  word,
+  youId,
+  canLike,
+}: {
+  word: SummaryWord;
+  youId: string;
+  canLike: boolean;
+}) {
+  const likedBy = word.likedBy ?? [];
+  const mine = word.playerId === youId;
+
+  return (
+    <li>
+      <span>
+        <WordLink word={word.display} />
+        <small className="word-owner" style={{ color: word.color }}>
+          {" "}
+          {word.name}
+        </small>
+      </span>
+      <span className="word-tail">
+        <WordLikeControl
+          wordKey={word.key}
+          display={word.display}
+          likedBy={likedBy}
+          youId={youId}
+          canLike={canLike && !mine}
+          showCount={!canLike || mine}
+        />
+        <em>{word.points}</em>
+      </span>
+    </li>
+  );
+}
+
+function SharedWordRow({
+  word,
+  youId,
+  canLike,
+}: {
+  word: SharedWord;
+  youId: string;
+  canLike: boolean;
+}) {
+  const likedBy = word.likedBy ?? [];
+  const foundIt = (word.playerIds ?? []).includes(youId);
+
+  return (
+    <li className="shared">
+      <span>
+        <WordLink word={word.display} />
+        <small className="word-owner">
+          {" "}
+          {word.names.map((n) => n.name).join(", ")}
+        </small>
+      </span>
+      <span className="word-tail">
+        <WordLikeControl
+          wordKey={word.key}
+          display={word.display}
+          likedBy={likedBy}
+          youId={youId}
+          canLike={canLike && !foundIt}
+          showCount={foundIt}
+        />
+        <em>0</em>
+      </span>
+    </li>
+  );
+}
+
+function WordLikeControl({
+  wordKey,
+  display,
+  likedBy,
+  youId,
+  canLike,
+  showCount,
+}: {
+  wordKey: string;
+  display: string;
+  likedBy: WordLike[];
+  youId: string;
+  canLike: boolean;
+  showCount: boolean;
+}) {
+  const youLiked = likedBy.some((like) => like.playerId === youId);
+  const names = likedBy.map((like) => (like.playerId === youId ? "toi" : like.name)).join(", ");
+
+  if (canLike) {
+    return (
+      <button
+        type="button"
+        className={`word-like ${youLiked ? "on" : ""}`}
+        aria-pressed={youLiked}
+        aria-label={youLiked ? `Retirer le like de ${display}` : `Liker ${display}`}
+        title={names ? `Aimé par ${names}` : "Liker ce mot"}
+        onClick={() => socket.emit("chat:like", { key: wordKey })}
+      >
+        ♥{likedBy.length > 0 ? ` ${likedBy.length}` : ""}
+      </button>
+    );
+  }
+  if (showCount && likedBy.length > 0) {
+    return (
+      <span className="word-like-count" title={`Aimé par ${names}`}>
+        ♥ {likedBy.length}
+      </span>
+    );
+  }
+  return null;
 }
 
 function MiniGrid({ grid }: { grid: Cell[] }) {
