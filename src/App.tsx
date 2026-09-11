@@ -33,9 +33,30 @@ export default function App() {
   const [room, setRoom] = useState<RoomView | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(() => loadSession()?.playerId ?? null);
   const [toast, setToast] = useState<string | null>(null);
+  const [admin, setAdmin] = useState(false);
   const roomRef = useRef<RoomView | null>(null);
   const pendingRejoin = useRef<Session | null>(null);
+  const toastTimer = useRef<number | null>(null);
   roomRef.current = room;
+
+  const showToast = (message: string, ms = 2800) => {
+    setToast(message);
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), ms);
+  };
+
+  const clearLocalSession = () => {
+    pendingRejoin.current = null;
+    sessionStorage.removeItem(SESSION_KEY);
+    setPlayerId(null);
+  };
+
+  const goHome = (message?: string) => {
+    clearLocalSession();
+    setRoom(null);
+    socket.emit("lobby:list");
+    if (message) showToast(message, 3500);
+  };
 
   useEffect(() => {
     const sync = () => setPath(window.location.pathname);
@@ -69,17 +90,15 @@ export default function App() {
         }
         return;
       }
-      setToast(message);
-      window.setTimeout(() => setToast(null), 2800);
+      showToast(message);
     };
     const onReplaced = () => {
-      pendingRejoin.current = null;
-      sessionStorage.removeItem(SESSION_KEY);
-      setRoom(null);
-      setPlayerId(null);
-      setToast("Ce compte joue sur un autre appareil");
-      window.setTimeout(() => setToast(null), 3500);
+      goHome("Ce compte joue sur un autre appareil");
     };
+    const onClosed = () => {
+      goHome("Ce salon a été fermé");
+    };
+    const onRole = ({ admin: next }: { admin: boolean }) => setAdmin(Boolean(next));
     const tryRejoin = () => {
       if (isLegalPath(window.location.pathname)) return;
       const existing = loadSession();
@@ -90,6 +109,8 @@ export default function App() {
     socket.on("room:state", onState);
     socket.on("session", onSession);
     socket.on("session:replaced", onReplaced);
+    socket.on("session:role", onRole);
+    socket.on("room:closed", onClosed);
     socket.on("notice", onError);
     socket.on("connect", tryRejoin);
     if (socket.connected) tryRejoin();
@@ -99,6 +120,8 @@ export default function App() {
       socket.off("room:state", onState);
       socket.off("session", onSession);
       socket.off("session:replaced", onReplaced);
+      socket.off("session:role", onRole);
+      socket.off("room:closed", onClosed);
       socket.off("notice", onError);
       socket.off("connect", tryRejoin);
       stopUnlock();
@@ -114,13 +137,13 @@ export default function App() {
       current && (current.phase === "playing" || current.phase === "results") && othersOnline,
     );
     socket.emit("room:leave");
-    if (!keepSeat) {
-      pendingRejoin.current = null;
-      sessionStorage.removeItem(SESSION_KEY);
-      setPlayerId(null);
-    }
+    if (!keepSeat) clearLocalSession();
     setRoom(null);
     socket.emit("lobby:list");
+  };
+
+  const closeRoom = (code: string) => {
+    socket.emit("room:close", { code });
   };
 
   const isHost = Boolean(room && playerId && room.hostId === playerId);
@@ -147,28 +170,36 @@ export default function App() {
       {!legal && !room && (
         <Home
           name={name}
+          admin={admin}
           onName={setName}
           onSolo={() => socket.emit("room:create", { name, solo: true })}
           onCreate={() => socket.emit("room:create", { name, solo: false })}
           onJoin={(code) => socket.emit("room:join", { code, name })}
+          onCloseRoom={closeRoom}
         />
       )}
       {!legal && room?.phase === "lobby" && (
         <Lobby
           room={room}
           isHost={isHost}
+          admin={admin}
           onSettings={(settings: GameSettings) => socket.emit("room:settings", settings)}
           onStart={() => socket.emit("game:start")}
           onLeave={leave}
+          onCloseRoom={() => closeRoom(room.code)}
         />
       )}
-      {!legal && room?.phase === "playing" && <Play room={room} onLeave={leave} />}
+      {!legal && room?.phase === "playing" && (
+        <Play room={room} admin={admin} onLeave={leave} onCloseRoom={() => closeRoom(room.code)} />
+      )}
       {!legal && room?.phase === "results" && (
         <Results
           room={room}
           isHost={isHost}
+          admin={admin}
           onNext={() => socket.emit("game:start")}
           onLeave={leave}
+          onCloseRoom={() => closeRoom(room.code)}
         />
       )}
     </div>

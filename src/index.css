@@ -285,7 +285,29 @@ button {
 }
 
 .account-user .meta strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: 15px;
+}
+
+.admin-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--coral);
+  border-radius: 999px;
+  padding: 3px 8px;
+}
+
+.account-user .meta .admin-badge {
+  color: var(--ink);
+  overflow: visible;
+  white-space: nowrap;
 }
 
 .account-user .meta span {
@@ -1150,6 +1172,8 @@ button {
 .play-top-actions {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
 }
 
 .btn-compact {
@@ -2025,6 +2049,11 @@ button {
 
 .lobby-room .btn {
   padding: 10px 14px;
+}
+
+.lobby-room-actions {
+  display: grid;
+  gap: 8px;
 }
 
 .offline {

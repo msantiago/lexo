@@ -9,6 +9,7 @@ data/auth.sqlite-*
 data/lexo.sqlite
 data/lexo.sqlite-*
 data/src/
+data/admins.txt
 .env
 .env.*
 !.env.example

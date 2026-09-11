@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { MAX_PLAYERS, foldPlayerName, type LobbyRoom } from "@shared/types";
 import { difficultyLabel, phaseLabel } from "@shared/rules";
 import AccountPanel from "../components/AccountPanel";
+import LeaveButton from "../components/LeaveButton";
 import FloatingLetters from "../components/FloatingLetters";
 import LexoLogo from "../components/LexoLogo";
 import { unlockAudio } from "../lib/sfx";
@@ -11,13 +12,15 @@ import Profile from "./Profile";
 
 type Props = {
   name: string;
+  admin?: boolean;
   onName: (name: string) => void;
   onSolo: () => void;
   onCreate: () => void;
   onJoin: (code: string) => void;
+  onCloseRoom?: (code: string) => void;
 };
 
-export default function Home({ name, onName, onSolo, onCreate, onJoin }: Props) {
+export default function Home({ name, admin, onName, onSolo, onCreate, onJoin, onCloseRoom }: Props) {
   const [rooms, setRooms] = useState<LobbyRoom[]>([]);
   const [page, setPage] = useState<"play" | "profile">("play");
   const { data: session } = authClient.useSession();
@@ -44,6 +47,7 @@ export default function Home({ name, onName, onSolo, onCreate, onJoin }: Props) 
             <p>Les mots sont sur la table</p>
           </div>
           <AccountPanel
+            admin={admin}
             onDisplayName={onName}
             onOpenProfile={session?.user ? () => setPage("profile") : undefined}
           />
@@ -117,10 +121,12 @@ export default function Home({ name, onName, onSolo, onCreate, onJoin }: Props) 
                   nameTaken={nameTaken}
                   canRejoin={canRejoin}
                   canJoin={canRejoin || (ready && room.playerCount < MAX_PLAYERS && !nameTaken)}
+                  admin={admin}
                   onJoin={() => {
                     unlockAudio();
                     onJoin(room.code);
                   }}
+                  onClose={onCloseRoom ? () => onCloseRoom(room.code) : undefined}
                 />
               );
             })}
@@ -145,13 +151,17 @@ function LobbyRoomCard({
   nameTaken,
   canRejoin,
   canJoin,
+  admin,
   onJoin,
+  onClose,
 }: {
   room: LobbyRoom;
   nameTaken: boolean;
   canRejoin: boolean;
   canJoin: boolean;
+  admin?: boolean;
   onJoin: () => void;
+  onClose?: () => void;
 }) {
   const full = room.playerCount >= MAX_PLAYERS;
   const started = room.phase !== "lobby";
@@ -208,9 +218,18 @@ function LobbyRoomCard({
           </li>
         ))}
       </ul>
-      <button className="btn btn-ghost" type="button" disabled={!canJoin} onClick={onJoin}>
-        {joinLabel}
-      </button>
+      <div className="lobby-room-actions">
+        <button className="btn btn-ghost" type="button" disabled={!canJoin} onClick={onJoin}>
+          {joinLabel}
+        </button>
+        {admin && onClose && (
+          <LeaveButton
+            onLeave={onClose}
+            label="Fermer le salon"
+            confirmLabel="Confirmer : fermer ?"
+          />
+        )}
+      </div>
     </li>
   );
 }

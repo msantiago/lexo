@@ -7,12 +7,14 @@ import { unlockAudio } from "../lib/sfx";
 type Props = {
   room: RoomView;
   isHost: boolean;
+  admin?: boolean;
   onSettings: (settings: GameSettings) => void;
   onStart: () => void;
   onLeave: () => void;
+  onCloseRoom?: () => void;
 };
 
-export default function Lobby({ room, isHost, onSettings, onStart, onLeave }: Props) {
+export default function Lobby({ room, isHost, admin, onSettings, onStart, onLeave, onCloseRoom }: Props) {
   return (
     <div className="screen lobby">
       <div>
@@ -49,6 +51,13 @@ export default function Lobby({ room, isHost, onSettings, onStart, onLeave }: Pr
             <p className="hint">En attente de l’hôte…</p>
           )}
           <LeaveButton onLeave={onLeave} label="Quitter" />
+          {admin && onCloseRoom && (
+            <LeaveButton
+              onLeave={onCloseRoom}
+              label="Fermer le salon"
+              confirmLabel="Confirmer : fermer ?"
+            />
+          )}
         </div>
       </div>
 

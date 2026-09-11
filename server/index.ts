@@ -8,9 +8,11 @@ import { fileURLToPath } from "node:url";
 import { Server } from "socket.io";
 import { toNodeHandler } from "better-auth/node";
 import type { GameSettings } from "../shared/types.ts";
+import { isAdminUser } from "./admin.ts";
 import { auth, authProviders, migrateAuth, sessionFromHeaders } from "./auth.ts";
 import { dictionary } from "./dictionary.ts";
 import {
+  closeRoom,
   createRoom,
   joinRoom,
   leaveRoom,
@@ -116,6 +118,9 @@ io.on("connection", async (socket) => {
   const session = await sessionFromHeaders(socket.handshake.headers);
   const userId = session?.user.id ?? null;
   socket.data.userId = userId;
+  socket.data.userEmail = session?.user.email ?? null;
+  socket.data.isAdmin = isAdminUser(session?.user);
+  socket.emit("session:role", { admin: Boolean(socket.data.isAdmin) });
   socket.emit("lobby:rooms", listPublicRooms());
 
   if (userId) {
@@ -202,6 +207,23 @@ io.on("connection", async (socket) => {
     leaveRoom(socket.id, userIdOf(socket));
   });
 
+  socket.on("room:close", ({ code }: { code?: string }) => {
+    if (!isAdminOf(socket)) {
+      socket.emit("notice", { message: "Action réservée aux administrateurs" });
+      return;
+    }
+    const result = closeRoom(code ?? "");
+    if ("error" in result) {
+      socket.emit("notice", { message: result.error });
+      return;
+    }
+    const who = typeof socket.data.userEmail === "string" ? socket.data.userEmail : userIdOf(socket);
+    console.log(`Admin ${who ?? "?"} closed room ${String(code ?? "").toUpperCase()}`);
+    for (const id of result.socketIds) {
+      io.to(id).emit("room:closed");
+    }
+  });
+
   socket.on("disconnect", () => {
     leaveSocket(socket.id);
   });
@@ -236,4 +258,8 @@ process.on("uncaughtException", (err) => {
 
 function userIdOf(socket: { data: { userId?: unknown } }): string | null {
   return typeof socket.data.userId === "string" ? socket.data.userId : null;
+}
+
+function isAdminOf(socket: { data: { isAdmin?: unknown } }): boolean {
+  return socket.data.isAdmin === true;
 }

@@ -6,11 +6,13 @@ import { socket } from "../socket";
 type Props = {
   room: RoomView;
   isHost: boolean;
+  admin?: boolean;
   onNext: () => void;
   onLeave: () => void;
+  onCloseRoom?: () => void;
 };
 
-export default function Results({ room, isHost, onNext, onLeave }: Props) {
+export default function Results({ room, isHost, admin, onNext, onLeave, onCloseRoom }: Props) {
   const ranked = [...room.players].sort(
     (a, b) => b.totalScore - a.totalScore || b.roundScore - a.roundScore,
   );
@@ -60,6 +62,13 @@ export default function Results({ room, isHost, onNext, onLeave }: Props) {
                 <p className="hint">En attente de l’hôte pour la manche suivante…</p>
               )}
               <LeaveButton onLeave={onLeave} />
+              {admin && onCloseRoom && (
+                <LeaveButton
+                  onLeave={onCloseRoom}
+                  label="Fermer le salon"
+                  confirmLabel="Confirmer : fermer ?"
+                />
+              )}
             </div>
           </div>
           <div className="podium" style={{ marginTop: 16 }}>

@@ -355,6 +355,16 @@ function destroyRoom(room: Room) {
   notifyLobby();
 }
 
+export function closeRoom(code: string) {
+  const room = getRoom(code.trim());
+  if (!room) return { error: "Salon introuvable" as const };
+  const socketIds = room.players
+    .map((player) => player.socketId)
+    .filter((id): id is string => Boolean(id));
+  destroyRoom(room);
+  return { socketIds };
+}
+
 function gameInProgress(room: Room) {
   return room.phase === "playing" || room.phase === "results";
 }

@@ -21,11 +21,12 @@ const EMPTY_PROVIDERS: AuthProviders = {
 };
 
 type Props = {
+  admin?: boolean;
   onDisplayName: (name: string) => void;
   onOpenProfile?: () => void;
 };
 
-export default function AccountPanel({ onDisplayName, onOpenProfile }: Props) {
+export default function AccountPanel({ admin, onDisplayName, onOpenProfile }: Props) {
   const { data: session, isPending } = authClient.useSession();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
@@ -110,7 +111,10 @@ export default function AccountPanel({ onDisplayName, onOpenProfile }: Props) {
         <div className="account-user">
           <span className="avatar account-avatar">{label.slice(0, 1).toUpperCase()}</span>
           <div className="meta">
-            <strong>{label}</strong>
+            <strong>
+              {label}
+              {admin ? <span className="admin-badge">Admin</span> : null}
+            </strong>
             <span>{session.user.email}</span>
           </div>
         </div>

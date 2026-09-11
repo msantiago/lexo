@@ -28,10 +28,12 @@ import { socket } from "../socket";
 
 type Props = {
   room: RoomView;
+  admin?: boolean;
   onLeave: () => void;
+  onCloseRoom?: () => void;
 };
 
-export default function Play({ room, onLeave }: Props) {
+export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
   const [drawPath, setDrawPath] = useState<number[]>([]);
   const [flash, setFlash] = useState<"success" | "fail" | null>(null);
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean; id: number } | null>(
@@ -214,6 +216,14 @@ export default function Play({ room, onLeave }: Props) {
         </div>
         <Timer remainingMs={remaining} totalMs={room.settings.durationSec * 1000} />
         <div className="play-top-actions">
+          {admin && onCloseRoom && (
+            <LeaveButton
+              onLeave={onCloseRoom}
+              label="Fermer"
+              confirmLabel="Fermer ?"
+              compact
+            />
+          )}
           <LeaveButton
             onLeave={onLeave}
             label="Quitter"
