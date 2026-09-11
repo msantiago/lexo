@@ -14,7 +14,7 @@ export default function Scoreboard({
     <aside className="scoreboard">
       <h3>Scores</h3>
       {ranked.map((p) => (
-        <div className="score-row" key={p.id}>
+        <div className={`score-row ${p.connected ? "" : "offline"}`} key={p.id}>
           <div className="avatar" style={{ background: p.color }}>
             {p.name.slice(0, 1).toUpperCase()}
           </div>
@@ -23,7 +23,10 @@ export default function Scoreboard({
               {p.name}
               {p.id === youId ? " (toi)" : ""}
             </strong>
-            <span>{p.wordCount} mot{p.wordCount > 1 ? "s" : ""}</span>
+            <span>
+              {p.wordCount} mot{p.wordCount > 1 ? "s" : ""}
+              {p.connected ? "" : " · déconnecté"}
+            </span>
           </div>
           <div className="pts">{p.roundScore}</div>
         </div>
@@ -42,7 +45,7 @@ export function ScorePills({
   return (
     <div className="mobile-scores">
       {players.map((p) => (
-        <div className="pill" key={p.id}>
+        <div className={`pill ${p.connected ? "" : "offline"}`} key={p.id}>
           <div className="avatar" style={{ background: p.color, width: 28, height: 28, fontSize: 13 }}>
             {p.name.slice(0, 1).toUpperCase()}
           </div>

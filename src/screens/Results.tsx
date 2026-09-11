@@ -64,7 +64,10 @@ export default function Results({ room, isHost, onNext, onLeave }: Props) {
           </div>
           <div className="podium" style={{ marginTop: 16 }}>
             {ranked.map((p, i) => (
-              <div className={`podium-item ${p.id === you?.id ? "you" : ""}`} key={p.id}>
+              <div
+                className={`podium-item ${p.id === you?.id ? "you" : ""} ${p.connected ? "" : "offline"}`}
+                key={p.id}
+              >
                 <div className="rank">{i + 1}</div>
                 <div className="avatar" style={{ background: p.color }}>
                   {p.name.slice(0, 1).toUpperCase()}
@@ -73,6 +76,7 @@ export default function Results({ room, isHost, onNext, onLeave }: Props) {
                   <strong>
                     {p.name}
                     {p.id === you?.id ? " (toi)" : ""}
+                    {!p.connected ? " · déconnecté" : ""}
                   </strong>
                   <div className="muted">
                     +{p.roundScore} cette manche · {p.wordCount} mot{p.wordCount > 1 ? "s" : ""}

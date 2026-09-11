@@ -224,7 +224,7 @@ function rerollView(room: Room, playerId: string): RerollView | null {
     canVote: open,
     youVoted: room.rerollVotes.has(playerId),
     voterIds: [...room.rerollVotes],
-    needed: room.players.length,
+    needed: Math.max(1, room.players.filter(isConnected).length),
     windowEndsAt: solo || !room.startedAt ? null : room.startedAt + REROLL_WINDOW_MS,
   };
 }
@@ -289,6 +289,7 @@ export function listPublicRooms(): LobbyRoom[] {
         name: p.name,
         color: p.color,
         isHost: p.id === room.hostId,
+        connected: isConnected(p),
         totalScore: p.totalScore,
         roundScore: p.roundScore,
       })),
@@ -354,6 +355,10 @@ function destroyRoom(room: Room) {
   notifyLobby();
 }
 
+function gameInProgress(room: Room) {
+  return room.phase === "playing" || room.phase === "results";
+}
+
 function isAbandoned(player: Player, now: number) {
   return (
     !isConnected(player) &&
@@ -370,6 +375,7 @@ function reapStalePlayers(now: number) {
       destroyRoom(room);
       continue;
     }
+    if (gameInProgress(room)) continue;
     for (const player of stale) {
       if (!rooms.has(room.code)) break;
       removePlayer(room, player);
@@ -440,6 +446,28 @@ function claimSeat(room: Room, player: Player, socketId: string): string | null 
   player.disconnectedAt = null;
   socketRoom.set(socketId, room.code);
   return previous;
+}
+
+function claimDisconnectedName(
+  room: Room,
+  socketId: string,
+  playerName: string,
+  userId: string | null,
+) {
+  const existing = room.players.find(
+    (p) => !isConnected(p) && foldPlayerName(p.name) === foldPlayerName(playerName),
+  );
+  if (!existing) return null;
+  if (existing.userId && userId && existing.userId !== userId) return null;
+  if (userId && !existing.userId) existing.userId = userId;
+  const extra = userId ? evacuateUser(userId, room.code) : [];
+  const replaced = claimSeat(room, existing, socketId);
+  emitState(room);
+  return {
+    room,
+    playerId: existing.id,
+    replacedSocketIds: [...extra, ...(replaced ? [replaced] : [])],
+  };
 }
 
 function makePlayer(
@@ -523,10 +551,12 @@ export function joinRoom(socketId: string, code: string, name: string, userId: s
       };
     }
     const replacedSocketIds = evacuateUser(userId);
+    const playerName = sanitizeName(name);
+    const vacated = claimDisconnectedName(room, socketId, playerName, userId);
+    if (vacated) return vacated;
     if (room.players.length >= MAX_PLAYERS) {
       return { error: "Ce salon est complet (10 joueurs)" as const };
     }
-    const playerName = sanitizeName(name);
     if (room.players.some((p) => foldPlayerName(p.name) === foldPlayerName(playerName))) {
       return { error: "Ce prénom est déjà pris dans ce salon" as const };
     }
@@ -536,10 +566,12 @@ export function joinRoom(socketId: string, code: string, name: string, userId: s
     emitState(room);
     return { room, playerId: player.id, replacedSocketIds };
   }
+  const playerName = sanitizeName(name);
+  const vacated = claimDisconnectedName(room, socketId, playerName, userId);
+  if (vacated) return vacated;
   if (room.players.length >= MAX_PLAYERS) {
     return { error: "Ce salon est complet (10 joueurs)" as const };
   }
-  const playerName = sanitizeName(name);
   if (room.players.some((p) => foldPlayerName(p.name) === foldPlayerName(playerName))) {
     return { error: "Ce prénom est déjà pris dans ce salon" as const };
   }
@@ -594,29 +626,47 @@ function removePlayer(room: Room, player: Player) {
   emitState(room);
 }
 
+function parkPlayer(room: Room, player: Player) {
+  if (player.socketId) socketRoom.delete(player.socketId);
+  player.socketId = null;
+  player.disconnectedAt = Date.now();
+  if (player.id === room.hostId) {
+    const nextHost = room.players.find((p) => p.id !== player.id && isConnected(p));
+    if (nextHost) room.hostId = nextHost.id;
+  }
+  emitState(room);
+}
+
 export function leaveSocket(socketId: string) {
   const room = getRoomBySocket(socketId);
   if (!room) return;
   const player = room.players.find((p) => p.socketId === socketId);
   socketRoom.delete(socketId);
   if (!player) return;
-
-  player.socketId = null;
-  player.disconnectedAt = Date.now();
-  emitState(room);
+  parkPlayer(room, player);
 }
 
-/** Intentional quit: leave the table even mid-round. */
+/** Leave the lobby for good; mid-game, keep the seat if others are still playing. */
 export function leaveRoom(socketId: string, userId: string | null = null) {
   const room = getRoomBySocket(socketId);
   if (room) {
     const player = room.players.find((p) => p.socketId === socketId);
+    if (!player) {
+      socketRoom.delete(socketId);
+      return;
+    }
+    const othersOnline = room.players.some((p) => p.id !== player.id && isConnected(p));
+    if (gameInProgress(room) && othersOnline) {
+      parkPlayer(room, player);
+      return;
+    }
     socketRoom.delete(socketId);
-    if (player) removePlayer(room, player);
+    removePlayer(room, player);
     return;
   }
   if (!userId) return;
   for (const open of [...rooms.values()]) {
+    if (gameInProgress(open)) continue;
     const stranded = open.players.find((p) => p.userId === userId && !isConnected(p));
     if (stranded) removePlayer(open, stranded);
   }
@@ -703,7 +753,8 @@ export function voteReroll(socketId: string) {
   }
 
   room.rerollVotes.add(player.id);
-  const unanimous = room.players.every((p) => room.rerollVotes.has(p.id));
+  const online = room.players.filter(isConnected);
+  const unanimous = online.length > 0 && online.every((p) => room.rerollVotes.has(p.id));
   if (unanimous) {
     beginRound(room, false);
     return { ok: true as const };

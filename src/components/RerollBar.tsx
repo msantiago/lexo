@@ -27,7 +27,7 @@ export default function RerollBar({ reroll, players, now, deal }: Props) {
 
   const windowLeft =
     reroll.windowEndsAt !== null ? Math.max(0, Math.ceil((reroll.windowEndsAt - now) / 1000)) : null;
-  const pending = players.filter((p) => !reroll.voterIds.includes(p.id));
+  const pending = players.filter((p) => p.connected && !reroll.voterIds.includes(p.id));
   const voted = players.filter((p) => reroll.voterIds.includes(p.id));
 
   const ask = () => {

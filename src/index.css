@@ -2027,6 +2027,22 @@ button {
   padding: 10px 14px;
 }
 
+.offline {
+  opacity: 0.55;
+}
+
+.offline .avatar {
+  filter: grayscale(0.45);
+}
+
+.offline-badge {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--gold-soft);
+}
+
 .rules-summary p {
   margin: 0;
   font-size: 16px;

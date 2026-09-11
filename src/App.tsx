@@ -106,11 +106,20 @@ export default function App() {
   }, []);
 
   const leave = () => {
+    const current = roomRef.current;
+    const othersOnline = Boolean(
+      current?.players.some((player) => player.id !== playerId && player.connected),
+    );
+    const keepSeat = Boolean(
+      current && (current.phase === "playing" || current.phase === "results") && othersOnline,
+    );
     socket.emit("room:leave");
-    sessionStorage.removeItem(SESSION_KEY);
-    pendingRejoin.current = null;
+    if (!keepSeat) {
+      pendingRejoin.current = null;
+      sessionStorage.removeItem(SESSION_KEY);
+      setPlayerId(null);
+    }
     setRoom(null);
-    setPlayerId(null);
     socket.emit("lobby:list");
   };
 

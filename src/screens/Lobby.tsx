@@ -20,7 +20,7 @@ export default function Lobby({ room, isHost, onSettings, onStart, onLeave }: Pr
           <h2>Autour de la table</h2>
           <div className="players">
             {room.players.map((p) => (
-              <div className="player-chip" key={p.id}>
+              <div className={`player-chip ${p.connected ? "" : "offline"}`} key={p.id}>
                 <div className="avatar" style={{ background: p.color }}>
                   {p.name.slice(0, 1).toUpperCase()}
                 </div>

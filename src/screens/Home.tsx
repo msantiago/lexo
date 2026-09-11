@@ -102,15 +102,21 @@ export default function Home({ name, onName, onSolo, onCreate, onJoin }: Props) 
         ) : (
           <ul className="lobby-rooms">
             {rooms.map((room) => {
-              const nameTaken = room.players.some(
-                (p) => foldPlayerName(p.name) === foldPlayerName(name),
+              const folded = foldPlayerName(name);
+              const mineOffline = room.players.some(
+                (p) => foldPlayerName(p.name) === folded && !p.connected,
               );
+              const nameTaken = room.players.some(
+                (p) => foldPlayerName(p.name) === folded && p.connected,
+              );
+              const canRejoin = ready && mineOffline;
               return (
                 <LobbyRoomCard
                   key={room.code}
                   room={room}
                   nameTaken={nameTaken}
-                  canJoin={ready && room.playerCount < MAX_PLAYERS && !nameTaken}
+                  canRejoin={canRejoin}
+                  canJoin={canRejoin || (ready && room.playerCount < MAX_PLAYERS && !nameTaken)}
                   onJoin={() => {
                     unlockAudio();
                     onJoin(room.code);
@@ -137,11 +143,13 @@ export default function Home({ name, onName, onSolo, onCreate, onJoin }: Props) 
 function LobbyRoomCard({
   room,
   nameTaken,
+  canRejoin,
   canJoin,
   onJoin,
 }: {
   room: LobbyRoom;
   nameTaken: boolean;
+  canRejoin: boolean;
   canJoin: boolean;
   onJoin: () => void;
 }) {
@@ -159,7 +167,8 @@ function LobbyRoomCard({
     : room.players;
 
   let joinLabel = "Rejoindre";
-  if (full) joinLabel = "Complet";
+  if (canRejoin) joinLabel = "Revenir";
+  else if (full) joinLabel = "Complet";
   else if (nameTaken) joinLabel = "Prénom pris";
 
   return (
@@ -175,12 +184,13 @@ function LobbyRoomCard({
       )}
       <ul className={`lobby-room-players ${started ? "scored" : ""}`}>
         {players.map((p) => (
-          <li className="lobby-room-player" key={p.id}>
+          <li className={`lobby-room-player ${p.connected ? "" : "offline"}`} key={p.id}>
             <span className="avatar" style={{ background: p.color }}>
               {p.name.slice(0, 1).toUpperCase()}
             </span>
             <strong>{p.name}</strong>
             {p.isHost && <span className="host-badge">Hôte</span>}
+            {!p.connected && <span className="offline-badge">hors ligne</span>}
             {started && (
               <span className="lobby-room-scores">
                 <span className="lobby-room-total">
