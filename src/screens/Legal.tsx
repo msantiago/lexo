@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import LexoLogo from "../components/LexoLogo";
 import { goHome, PRIVACY_PATH, TERMS_PATH } from "../lib/nav";
 
-const UPDATED = "10 septembre 2026";
+const UPDATED = "13 septembre 2026";
 
 function LegalPage({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -48,7 +48,7 @@ export function Privacy() {
       <ul>
         <li>
           <strong>Compte Lexo</strong> : adresse e-mail, mot de passe (stocké sous forme hachée,
-          jamais en clair), pseudo.
+          jamais en clair), pseudo, et l’avatar que tu choisis (icône ou photo).
         </li>
         <li>
           <strong>Connexion via Google, Apple, Facebook, Microsoft, GitHub ou Discord</strong> : le
@@ -74,7 +74,7 @@ export function Privacy() {
       <ul>
         <li>te permettre de jouer et de retrouver tes parties ;</li>
         <li>créer et sécuriser un compte, y compris via OAuth ;</li>
-        <li>afficher ton pseudo, tes scores et tes badges ;</li>
+        <li>afficher ton pseudo, ton avatar, tes scores et tes badges ;</li>
         <li>faire fonctionner les salons en temps réel.</li>
       </ul>
       <p>
@@ -102,8 +102,8 @@ export function Privacy() {
 
       <h2>Tes droits</h2>
       <p>
-        Tu peux accéder à tes données depuis ton profil Lexo, rectifier ton pseudo, et demander la
-        suppression de ton compte et des parties associées. Tu peux aussi retirer l’accès à Lexo
+        Tu peux accéder à tes données depuis ton profil Lexo, rectifier ton pseudo et ton avatar, et
+        demander la suppression de ton compte et des parties associées. Tu peux aussi retirer l’accès à Lexo
         depuis les paramètres de ton compte Google (ou de l’autre prestataire).
       </p>
       <p>

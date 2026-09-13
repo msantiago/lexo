@@ -102,4 +102,5 @@ export type ProfilePayload = {
   badges: BadgeView[];
   games: GameHistoryItem[];
   recentUnlocks: BadgeDef[];
+  hasCustomAvatar?: boolean;
 };
