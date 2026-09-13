@@ -12,14 +12,35 @@ function alertUrl() {
   }
 }
 
-function postAlert(title: string, body: string) {
+function postJson(url: string, body: unknown, label: string) {
+  void fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(ALERT_TIMEOUT_MS),
+  }).catch((err) => {
+    console.error(`Alerte ${label} impossible :`, err instanceof Error ? err.message : err);
+  });
+}
+
+function notifyTelegram(title: string, body: string) {
+  const token = process.env.LEXO_TELEGRAM_BOT_TOKEN?.trim();
+  const chatId = process.env.LEXO_TELEGRAM_CHAT_ID?.trim();
+  if (!token || !chatId) return;
+
+  const appUrl = process.env.BETTER_AUTH_URL?.trim();
+  const text = appUrl ? `${title}\n${body}\n${appUrl}` : `${title}\n${body}`;
+  postJson(`https://api.telegram.org/bot${token}/sendMessage`, { chat_id: chatId, text }, "Telegram");
+}
+
+function notifyNtfy(title: string, body: string) {
   const url = alertUrl();
   if (!url) return;
 
   const headers: Record<string, string> = {
     Title: title,
     Tags: "game_die",
-    Priority: "default",
+    "X-Priority": "high",
   };
   const token = process.env.LEXO_ALERT_TOKEN?.trim();
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -38,5 +59,8 @@ function postAlert(title: string, body: string) {
 
 export function notifyRoomCreated(room: { code: string; solo: boolean; hostName: string }) {
   if (room.solo) return;
-  postAlert("Nouveau salon Lexo", `${room.hostName} a créé le salon ${room.code}`);
+  const title = "Nouveau salon Lexo";
+  const body = `${room.hostName} a créé le salon ${room.code}`;
+  notifyTelegram(title, body);
+  notifyNtfy(title, body);
 }
