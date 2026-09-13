@@ -14,6 +14,7 @@ import WordList from "../components/WordList";
 import ScoreBursts, { createScoreBurst, type ScoreBurstItem } from "../components/ScoreBurst";
 import LeaveButton from "../components/LeaveButton";
 import { FAIL_MESSAGES } from "../lib/format";
+import { loadShowOtherScores, saveShowOtherScores } from "../lib/prefs";
 import {
   hapticFail,
   hapticSuccess,
@@ -43,8 +44,18 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
   const [typed, setTyped] = useState("");
   const [now, setNow] = useState(Date.now());
   const [bursts, setBursts] = useState<ScoreBurstItem[]>([]);
+  const [showOtherScores, setShowOtherScores] = useState(loadShowOtherScores);
+  const showOtherScoresRef = useRef(showOtherScores);
+  showOtherScoresRef.current = showOtherScores;
   const removeBurst = useCallback((id: number) => {
     setBursts((list) => list.filter((item) => item.id !== id));
+  }, []);
+  const toggleOtherScores = useCallback(() => {
+    setShowOtherScores((prev) => {
+      const next = !prev;
+      saveShowOtherScores(next);
+      return next;
+    });
   }, []);
 
   const typedPath =
@@ -93,6 +104,8 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
           const burst = createScoreBurst(result.word.points, result.word.letters);
           setBursts((list) => [...list.slice(-6), burst]);
           playScoreSound(result.word.letters);
+        } else if (result.shared && !showOtherScoresRef.current) {
+          playStolenSound();
         }
         hapticSuccess(result.shared);
       } else {
@@ -105,7 +118,7 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
     };
     socket.on("word:result", onResult);
     const onShared = () => {
-      playStolenSound();
+      if (showOtherScoresRef.current) playStolenSound();
     };
     socket.on("word:shared", onShared);
     return () => {
@@ -233,8 +246,18 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
         </div>
       </div>
 
-      <ScorePills players={room.players} youId={room.you.id} />
-      <Scoreboard players={room.players} youId={room.you.id} />
+      <ScorePills
+        players={room.players}
+        youId={room.you.id}
+        showOtherScores={showOtherScores}
+        onToggleOtherScores={room.players.length > 1 ? toggleOtherScores : undefined}
+      />
+      <Scoreboard
+        players={room.players}
+        youId={room.you.id}
+        showOtherScores={showOtherScores}
+        onToggleOtherScores={room.players.length > 1 ? toggleOtherScores : undefined}
+      />
 
       <div className="stage">
         <div className={`preview ${preview ? "" : "empty"}`}>

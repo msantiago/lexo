@@ -1386,6 +1386,24 @@ button {
   padding: 16px;
 }
 
+.scoreboard-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.scoreboard-head h3 {
+  margin: 0;
+}
+
+.score-visibility {
+  flex: none;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
 .score-row {
   display: flex;
   align-items: center;
@@ -1400,8 +1418,14 @@ button {
   color: var(--gold);
 }
 
+.score-row .pts.hidden,
+.mobile-scores .pill span.hidden {
+  color: rgba(255, 246, 234, 0.35);
+}
+
 .mobile-scores {
   display: flex;
+  align-items: center;
   gap: 8px;
   overflow: auto;
 }
