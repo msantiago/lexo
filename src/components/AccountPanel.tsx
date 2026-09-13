@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type { AuthProviders } from "@shared/account";
+import Avatar from "./Avatar";
 import {
   SOCIAL_PROVIDERS,
   authClient,
@@ -109,7 +110,7 @@ export default function AccountPanel({ admin, onDisplayName, onOpenProfile }: Pr
     return (
       <section className="panel account-panel">
         <div className="account-user">
-          <span className="avatar account-avatar">{label.slice(0, 1).toUpperCase()}</span>
+          <Avatar className="account-avatar" name={label} image={session.user.image} />
           <div className="meta">
             <strong>
               {label}

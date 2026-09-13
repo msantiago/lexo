@@ -10,6 +10,7 @@ data/lexo.sqlite
 data/lexo.sqlite-*
 data/src/
 data/admins.txt
+data/avatars/
 .env
 .env.*
 !.env.example

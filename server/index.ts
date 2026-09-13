@@ -31,6 +31,7 @@ import {
   voteReroll,
   adoptRejectedWord,
 } from "./rooms.ts";
+import { hasUserAvatar, parseAvatarDataUrl, readUserAvatar, saveUserAvatar } from "./avatars.ts";
 import { getGame, getProfile, listGames, migrateStore } from "./store.ts";
 
 const PORT = Number(process.env.PORT) || 3001;
@@ -46,7 +47,7 @@ const io = new Server(httpServer, {
 });
 
 app.all("/api/auth/{*any}", toNodeHandler(auth));
-app.use(express.json());
+app.use(express.json({ limit: "600kb" }));
 
 app.get("/api/auth-config", (_req, res) => {
   res.json(authProviders);
@@ -58,7 +59,7 @@ app.get("/api/me/profile", async (req, res) => {
     res.status(401).json({ error: "Non connecté" });
     return;
   }
-  res.json(getProfile(session.user.id));
+  res.json({ ...getProfile(session.user.id), hasCustomAvatar: hasUserAvatar(session.user.id) });
 });
 
 app.get("/api/me/games", async (req, res) => {
@@ -68,6 +69,45 @@ app.get("/api/me/games", async (req, res) => {
     return;
   }
   res.json(listGames(session.user.id));
+});
+
+app.get("/api/avatars/:userId", (req, res) => {
+  const bytes = readUserAvatar(String(req.params.userId ?? ""));
+  if (!bytes) {
+    res.status(404).end();
+    return;
+  }
+  res.setHeader("Content-Type", "image/jpeg");
+  res.setHeader("Cache-Control", "public, max-age=86400");
+  res.send(bytes);
+});
+
+app.head("/api/avatars/:userId", (req, res) => {
+  if (!hasUserAvatar(String(req.params.userId ?? ""))) {
+    res.status(404).end();
+    return;
+  }
+  res.status(200).end();
+});
+
+app.post("/api/me/avatar", async (req, res) => {
+  const session = await sessionFromHeaders(req.headers);
+  if (!session?.user) {
+    res.status(401).json({ error: "Non connecté" });
+    return;
+  }
+  const raw = typeof req.body?.image === "string" ? req.body.image : "";
+  const bytes = parseAvatarDataUrl(raw);
+  if (!bytes) {
+    res.status(400).json({ error: "Image invalide ou trop lourde." });
+    return;
+  }
+  if (!saveUserAvatar(session.user.id, bytes)) {
+    res.status(400).json({ error: "Impossible d’enregistrer la photo." });
+    return;
+  }
+  const image = `/api/avatars/${session.user.id}?v=${Date.now()}`;
+  res.json({ image });
 });
 
 app.get("/api/me/games/:id", async (req, res) => {

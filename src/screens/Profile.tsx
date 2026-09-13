@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type {
   GameHistoryDetail,
   GameHistoryItem,
@@ -7,10 +7,21 @@ import type {
   WordStatsPayload,
 } from "@shared/account";
 import { BADGE_CATEGORY_LABELS, type BadgeCategory, type BadgeView } from "@shared/badges";
+import {
+  AVATAR_PRESETS,
+  LETTER_AVATAR_ID,
+  PHOTO_AVATAR_ID,
+  customAvatarSrc,
+  encodeAvatar,
+  parseAvatarId,
+} from "@shared/avatars";
 import { difficultyLabel } from "@shared/rules";
 import type { Cell } from "@shared/types";
+import Avatar from "../components/Avatar";
+import AvatarCropper from "../components/AvatarCropper";
 import WordLink from "../components/WordLink";
 import { authClient, displayNameFromUser, sanitizePseudo } from "../lib/auth-client";
+import { loadImageFile } from "../lib/crop-avatar";
 
 type Tab = "badges" | "words" | "games";
 
@@ -28,11 +39,27 @@ export default function Profile({ onBack, onDisplayName }: Props) {
   const [nick, setNick] = useState("");
   const [nickBusy, setNickBusy] = useState(false);
   const [nickSaved, setNickSaved] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [hasPhoto, setHasPhoto] = useState(false);
+  const [cropImage, setCropImage] = useState<HTMLImageElement | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const label = displayNameFromUser(session?.user?.name, session?.user?.email);
+  const avatarId = parseAvatarId(session?.user?.image);
+  const userId = session?.user?.id;
+  const photoSrc =
+    avatarId === PHOTO_AVATAR_ID && session?.user?.image
+      ? session.user.image
+      : userId
+        ? customAvatarSrc(userId)
+        : null;
 
   useEffect(() => {
     setNick(label);
   }, [label]);
+
+  useEffect(() => {
+    if (avatarId === PHOTO_AVATAR_ID) setHasPhoto(true);
+  }, [avatarId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,7 +69,10 @@ export default function Profile({ onBack, onDisplayName }: Props) {
         return res.json() as Promise<ProfilePayload>;
       })
       .then((data) => {
-        if (!cancelled) setProfile(data);
+        if (!cancelled) {
+          setProfile(data);
+          if (data.hasCustomAvatar) setHasPhoto(true);
+        }
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : "Erreur de chargement.");
@@ -60,6 +90,61 @@ export default function Profile({ onBack, onDisplayName }: Props) {
       return;
     }
     setGame((await res.json()) as GameHistoryDetail);
+  };
+
+  const saveAvatar = async (id: string) => {
+    if (id === avatarId || avatarBusy) return;
+    setError(null);
+    setAvatarBusy(true);
+    try {
+      const image =
+        id === PHOTO_AVATAR_ID && userId ? customAvatarSrc(userId, Date.now()) : encodeAvatar(id);
+      const result = await authClient.updateUser({ image });
+      if (result.error) setError("Impossible d’enregistrer l’avatar.");
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  const pickPhoto = () => fileRef.current?.click();
+
+  const onPhotoFile = async (file?: File) => {
+    if (!file) return;
+    setError(null);
+    try {
+      setCropImage(await loadImageFile(file));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Impossible de lire cette image.");
+    } finally {
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const confirmPhoto = async (dataUrl: string) => {
+    setError(null);
+    setAvatarBusy(true);
+    try {
+      const res = await fetch("/api/me/avatar", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: dataUrl }),
+      });
+      const payload = (await res.json().catch(() => null)) as { image?: string; error?: string } | null;
+      if (!res.ok || !payload?.image) {
+        setError(payload?.error || "Impossible d’enregistrer la photo.");
+        return;
+      }
+      const result = await authClient.updateUser({ image: payload.image });
+      if (result.error) {
+        setError("La photo est enregistrée, mais le profil n’a pas été mis à jour.");
+        return;
+      }
+      setHasPhoto(true);
+      setCropImage(null);
+    } finally {
+      setAvatarBusy(false);
+    }
   };
 
   const saveNick = async (event: FormEvent) => {
@@ -101,13 +186,87 @@ export default function Profile({ onBack, onDisplayName }: Props) {
             Retour
           </button>
           <div className="profile-identity">
-            <span className="avatar account-avatar">{label.slice(0, 1).toUpperCase()}</span>
+            <Avatar className="account-avatar" name={label} image={session?.user?.image} />
             <div className="meta">
               <h1>{label}</h1>
               {session?.user?.email && <span>{session.user.email}</span>}
             </div>
           </div>
         </div>
+        <fieldset className="avatar-picker" disabled={avatarBusy}>
+          <legend>Avatar</legend>
+          <input
+            ref={fileRef}
+            className="avatar-file"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/*"
+            aria-label="Importer une image"
+            onChange={(e) => void onPhotoFile(e.target.files?.[0])}
+          />
+          <div className="avatar-options" role="listbox" aria-label="Choisir un avatar">
+            {hasPhoto && photoSrc ? (
+              <button
+                type="button"
+                role="option"
+                aria-selected={avatarId === PHOTO_AVATAR_ID}
+                className={`avatar-option ${avatarId === PHOTO_AVATAR_ID ? "on" : ""}`}
+                title="Photo"
+                aria-label="Photo"
+                onClick={() => saveAvatar(PHOTO_AVATAR_ID)}
+              >
+                <Avatar name={label} image={photoSrc} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="avatar-option avatar-option-add"
+                title="Importer une image"
+                aria-label="Importer une image"
+                onClick={pickPhoto}
+              >
+                <span className="avatar avatar-add" aria-hidden>
+                  +
+                </span>
+              </button>
+            )}
+            <button
+              type="button"
+              role="option"
+              aria-selected={avatarId === LETTER_AVATAR_ID}
+              className={`avatar-option ${avatarId === LETTER_AVATAR_ID ? "on" : ""}`}
+              title="Initiale"
+              aria-label="Initiale"
+              onClick={() => saveAvatar(LETTER_AVATAR_ID)}
+            >
+              <Avatar name={label} image={encodeAvatar(LETTER_AVATAR_ID)} />
+            </button>
+            {AVATAR_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                role="option"
+                aria-selected={avatarId === preset.id}
+                className={`avatar-option ${avatarId === preset.id ? "on" : ""}`}
+                title={preset.label}
+                aria-label={preset.label}
+                onClick={() => saveAvatar(preset.id)}
+              >
+                <Avatar name={label} image={encodeAvatar(preset.id)} />
+              </button>
+            ))}
+          </div>
+          <button className="btn btn-ghost avatar-import" type="button" onClick={pickPhoto}>
+            {hasPhoto ? "Changer la photo" : "Importer une image"}
+          </button>
+        </fieldset>
+        {cropImage && (
+          <AvatarCropper
+            image={cropImage}
+            busy={avatarBusy}
+            onCancel={() => setCropImage(null)}
+            onConfirm={(dataUrl) => void confirmPhoto(dataUrl)}
+          />
+        )}
         <form className="profile-nick" onSubmit={saveNick}>
           <div className="field">
             <label htmlFor="profile-nick">Pseudo</label>
