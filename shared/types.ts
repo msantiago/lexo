@@ -76,6 +76,10 @@ export type PlayerPublic = {
   roundScore: number;
   totalScore: number;
   wordCount: number;
+  /** Present only for admin observers: live words found this round. */
+  words?: FoundWord[];
+  /** Present only for admin observers: cells currently being traced. */
+  path?: number[];
 };
 
 export type Phase = "lobby" | "playing" | "results";
@@ -96,6 +100,7 @@ export type LobbyRoom = {
   hostId: string;
   playerCount: number;
   difficulty: GridDifficulty;
+  solo: boolean;
   players: LobbyPlayer[];
 };
 
@@ -195,6 +200,8 @@ export type RoomView = {
   grid: Cell[] | null;
   startedAt: number | null;
   endsAt: number | null;
+  solo: boolean;
+  observing: boolean;
   you: {
     id: string;
     words: FoundWord[];

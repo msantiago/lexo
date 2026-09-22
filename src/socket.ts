@@ -4,12 +4,13 @@ import type { GameSettings, LobbyRoom, RoomView, WordSubmitResult } from "@share
 export type ServerToClient = {
   "room:state": (room: RoomView) => void;
   "lobby:rooms": (rooms: LobbyRoom[]) => void;
-  session: (data: { playerId: string; code: string }) => void;
+  session: (data: { playerId: string; code: string; observing?: boolean }) => void;
   "session:replaced": () => void;
   "session:role": (data: { admin: boolean }) => void;
   "room:closed": () => void;
   "word:result": (result: WordSubmitResult) => void;
   "word:shared": (data: { key: string }) => void;
+  "player:trace": (data: { playerId: string; cells: number[] }) => void;
   notice: (data: { message: string }) => void;
 };
 
@@ -17,12 +18,14 @@ export type ClientToServer = {
   "lobby:list": () => void;
   "room:create": (data: { name: string; solo?: boolean }) => void;
   "room:join": (data: { code: string; name: string }) => void;
+  "room:observe": (data: { code: string; name: string }) => void;
   "room:rejoin": (data: { code: string; playerId: string }) => void;
   "room:settings": (settings: Partial<GameSettings>) => void;
   "room:leave": () => void;
   "room:close": (data: { code: string }) => void;
   "game:start": () => void;
   "game:word": (data: { cells: number[] }) => void;
+  "game:trace": (data: { cells: number[] }) => void;
   "game:reroll": () => void;
   "dict:add": (data: { key: string }) => void;
   "chat:send": (data: { text: string }) => void;

@@ -42,6 +42,14 @@ type Player = {
   lastChatAt: number | null;
 };
 
+type Observer = {
+  id: string;
+  name: string;
+  socketId: string | null;
+  disconnectedAt: number | null;
+  userId: string | null;
+};
+
 type RejectedAttempt = {
   display: string;
   letters: number;
@@ -73,6 +81,9 @@ type Room = {
   rerollWindowTimer: ReturnType<typeof setTimeout> | null;
   chat: ChatMessage[];
   likes: Map<string, Set<string>>;
+  observers: Observer[];
+  /** playerId → cells currently being drawn (admin observers only). */
+  traces: Map<string, number[]>;
 };
 
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -137,7 +148,7 @@ function clampSettings(input: Partial<GameSettings> | undefined): GameSettings {
   };
 }
 
-function publicPlayer(p: Player): PlayerPublic {
+function publicPlayer(p: Player, extras?: { words?: FoundWord[]; path?: number[] }): PlayerPublic {
   return {
     id: p.id,
     name: p.name,
@@ -146,6 +157,7 @@ function publicPlayer(p: Player): PlayerPublic {
     roundScore: p.roundScore,
     totalScore: p.totalScore,
     wordCount: p.words.length,
+    ...extras,
   };
 }
 
@@ -371,26 +383,35 @@ function rerollView(room: Room, playerId: string): RerollView | null {
   };
 }
 
-export function viewFor(room: Room, playerId: string): RoomView {
-  const you = room.players.find((p) => p.id === playerId);
+export function viewFor(room: Room, viewerId: string, observing = false): RoomView {
+  const you = observing ? undefined : room.players.find((p) => p.id === viewerId);
   return {
     code: room.code,
     hostId: room.hostId,
     phase: room.phase,
     round: room.round,
     settings: room.settings,
-    players: room.players.map(publicPlayer),
+    players: room.players.map((p) =>
+      publicPlayer(
+        p,
+        observing
+          ? { words: p.words, path: room.traces.get(p.id) ?? [] }
+          : undefined,
+      ),
+    ),
     grid: room.grid,
     startedAt: room.startedAt,
     endsAt: room.endsAt,
+    solo: room.solo,
+    observing,
     you: {
-      id: playerId,
+      id: viewerId,
       words: you?.words ?? [],
       earnedBadges: you?.earnedBadges ?? [],
     },
     recap: recap(room),
     summary: roundSummary(room),
-    reroll: rerollView(room, playerId),
+    reroll: observing ? null : rerollView(room, viewerId),
     chat: room.chat ?? [],
   };
 }
@@ -405,7 +426,7 @@ export function getRoom(code: string): Room | undefined {
 }
 
 type Broadcast = (room: Room, event: string, payload?: unknown) => void;
-type LobbyBroadcast = (rooms: LobbyRoom[]) => void;
+type LobbyBroadcast = (publicRooms: LobbyRoom[], adminRooms: LobbyRoom[]) => void;
 
 let broadcast: Broadcast = () => {};
 let lobbyBroadcast: LobbyBroadcast = () => {};
@@ -418,29 +439,38 @@ export function setLobbyBroadcast(fn: LobbyBroadcast) {
   lobbyBroadcast = fn;
 }
 
+function toLobbyRoom(room: Room): LobbyRoom {
+  return {
+    code: room.code,
+    phase: room.phase,
+    hostId: room.hostId,
+    playerCount: room.players.length,
+    difficulty: room.settings.difficulty,
+    solo: room.solo,
+    players: room.players.map((p) => ({
+      id: p.id,
+      name: p.name,
+      color: p.color,
+      isHost: p.id === room.hostId,
+      connected: isConnected(p),
+      totalScore: p.totalScore,
+      roundScore: p.roundScore,
+    })),
+  };
+}
+
 export function listPublicRooms(): LobbyRoom[] {
   return [...rooms.values()]
     .filter((room) => !room.solo && hasConnectedPlayers(room))
-    .map((room) => ({
-      code: room.code,
-      phase: room.phase,
-      hostId: room.hostId,
-      playerCount: room.players.length,
-      difficulty: room.settings.difficulty,
-      players: room.players.map((p) => ({
-        id: p.id,
-        name: p.name,
-        color: p.color,
-        isHost: p.id === room.hostId,
-        connected: isConnected(p),
-        totalScore: p.totalScore,
-        roundScore: p.roundScore,
-      })),
-    }));
+    .map(toLobbyRoom);
+}
+
+export function listAdminRooms(): LobbyRoom[] {
+  return [...rooms.values()].filter(hasConnectedPlayers).map(toLobbyRoom);
 }
 
 function notifyLobby() {
-  lobbyBroadcast(listPublicRooms());
+  lobbyBroadcast(listPublicRooms(), listAdminRooms());
 }
 
 function emitState(room: Room) {
@@ -492,8 +522,12 @@ function finishRound(room: Room) {
 function destroyRoom(room: Room) {
   clearTimer(room);
   clearRerollTimer(room);
+  broadcast(room, "observer:closed");
   for (const player of room.players) {
     if (player.socketId) socketRoom.delete(player.socketId);
+  }
+  for (const observer of room.observers) {
+    if (observer.socketId) socketRoom.delete(observer.socketId);
   }
   rooms.delete(room.code);
   notifyLobby();
@@ -533,6 +567,17 @@ function reapStalePlayers(now: number) {
     for (const player of stale) {
       if (!rooms.has(room.code)) break;
       removePlayer(room, player);
+    }
+  }
+  for (const room of [...rooms.values()]) {
+    const staleObservers = room.observers.filter(
+      (observer) =>
+        !observer.socketId &&
+        observer.disconnectedAt !== null &&
+        now - observer.disconnectedAt >= DISCONNECT_GRACE_MS,
+    );
+    for (const observer of staleObservers) {
+      removeObserver(room, observer);
     }
   }
 }
@@ -583,12 +628,21 @@ function evacuateUser(userId: string, exceptCode?: string): string[] {
   for (const room of [...rooms.values()]) {
     if (exceptCode && room.code === exceptCode) continue;
     const player = room.players.find((p) => p.userId === userId);
-    if (!player) continue;
-    if (player.socketId) {
-      kicked.push(player.socketId);
-      socketRoom.delete(player.socketId);
+    if (player) {
+      if (player.socketId) {
+        kicked.push(player.socketId);
+        socketRoom.delete(player.socketId);
+      }
+      removePlayer(room, player);
     }
-    removePlayer(room, player);
+    const observer = room.observers.find((o) => o.userId === userId);
+    if (observer) {
+      if (observer.socketId) {
+        kicked.push(observer.socketId);
+        socketRoom.delete(observer.socketId);
+      }
+      removeObserver(room, observer);
+    }
   }
   return kicked;
 }
@@ -648,6 +702,11 @@ function makePlayer(
 function abandonCurrentSeat(socketId: string) {
   const room = getRoomBySocket(socketId);
   if (!room) return;
+  const observer = room.observers.find((o) => o.socketId === socketId);
+  if (observer) {
+    removeObserver(room, observer);
+    return;
+  }
   const player = room.players.find((p) => p.socketId === socketId);
   socketRoom.delete(socketId);
   if (player) removePlayer(room, player);
@@ -680,6 +739,8 @@ export function createRoom(socketId: string, name: string, solo = false, userId:
     rerollWindowTimer: null,
     chat: [],
     likes: new Map(),
+    observers: [],
+    traces: new Map(),
   };
   rooms.set(code, room);
   socketRoom.set(socketId, code);
@@ -743,6 +804,17 @@ export function joinRoom(socketId: string, code: string, name: string, userId: s
 export function rejoinRoom(socketId: string, code: string, playerId: string, userId: string | null = null) {
   const room = rooms.get(code.trim().toUpperCase());
   if (!room) return { error: "Salon introuvable" as const };
+  const observer = room.observers.find((o) => o.id === playerId);
+  if (observer) {
+    const replacedSocketId = claimObserver(room, observer, socketId);
+    if (userId && !observer.userId) observer.userId = userId;
+    return {
+      room,
+      playerId: observer.id,
+      observing: true as const,
+      replacedSocketIds: replacedSocketId ? [replacedSocketId] : [],
+    };
+  }
   const player = room.players.find((p) => p.id === playerId);
   if (!player) return { error: "Joueur introuvable" as const };
   const replacedSocketId = claimSeat(room, player, socketId);
@@ -751,6 +823,7 @@ export function rejoinRoom(socketId: string, code: string, playerId: string, use
   return {
     room,
     playerId: player.id,
+    observing: false as const,
     replacedSocketIds: replacedSocketId ? [replacedSocketId] : [],
   };
 }
@@ -758,22 +831,48 @@ export function rejoinRoom(socketId: string, code: string, playerId: string, use
 export function rejoinByUserId(socketId: string, userId: string) {
   for (const room of rooms.values()) {
     const player = room.players.find((p) => p.userId === userId);
-    if (!player) continue;
-    const replacedSocketId = claimSeat(room, player, socketId);
-    emitState(room);
+    if (player) {
+      const replacedSocketId = claimSeat(room, player, socketId);
+      emitState(room);
+      return {
+        room,
+        playerId: player.id,
+        observing: false as const,
+        replacedSocketIds: replacedSocketId ? [replacedSocketId] : [],
+      };
+    }
+    const observer = room.observers.find((o) => o.userId === userId);
+    if (!observer) continue;
+    const replacedSocketId = claimObserver(room, observer, socketId);
     return {
       room,
-      playerId: player.id,
+      playerId: observer.id,
+      observing: true as const,
       replacedSocketIds: replacedSocketId ? [replacedSocketId] : [],
     };
   }
   return null;
 }
 
+function claimObserver(room: Room, observer: Observer, socketId: string): string | null {
+  const previous = observer.socketId && observer.socketId !== socketId ? observer.socketId : null;
+  if (previous) socketRoom.delete(previous);
+  observer.socketId = socketId;
+  observer.disconnectedAt = null;
+  socketRoom.set(socketId, room.code);
+  return previous;
+}
+
+function removeObserver(room: Room, observer: Observer) {
+  if (observer.socketId) socketRoom.delete(observer.socketId);
+  room.observers = room.observers.filter((o) => o.id !== observer.id);
+}
+
 function removePlayer(room: Room, player: Player) {
   if (player.socketId) socketRoom.delete(player.socketId);
   room.players = room.players.filter((p) => p.id !== player.id);
   room.rerollVotes.delete(player.id);
+  room.traces.delete(player.id);
   if (room.players.length === 0) {
     destroyRoom(room);
     return;
@@ -798,6 +897,13 @@ function parkPlayer(room: Room, player: Player) {
 export function leaveSocket(socketId: string) {
   const room = getRoomBySocket(socketId);
   if (!room) return;
+  const observer = room.observers.find((o) => o.socketId === socketId);
+  if (observer) {
+    socketRoom.delete(socketId);
+    observer.socketId = null;
+    observer.disconnectedAt = Date.now();
+    return;
+  }
   const player = room.players.find((p) => p.socketId === socketId);
   socketRoom.delete(socketId);
   if (!player) return;
@@ -808,6 +914,11 @@ export function leaveSocket(socketId: string) {
 export function leaveRoom(socketId: string, userId: string | null = null) {
   const room = getRoomBySocket(socketId);
   if (room) {
+    const observer = room.observers.find((o) => o.socketId === socketId);
+    if (observer) {
+      removeObserver(room, observer);
+      return;
+    }
     const player = room.players.find((p) => p.socketId === socketId);
     if (!player) {
       socketRoom.delete(socketId);
@@ -859,6 +970,7 @@ function beginRound(room: Room, incrementRound: boolean) {
   room.missed = [];
   room.rerollVotes = new Set();
   room.likes = new Map();
+  room.traces = new Map();
   room.startedAt = Date.now();
   room.endsAt = room.startedAt + room.settings.durationSec * 1000;
   for (const p of room.players) {
@@ -920,6 +1032,73 @@ export function voteReroll(socketId: string) {
   }
   emitState(room);
   return { ok: true as const };
+}
+
+export function observeRoom(
+  socketId: string,
+  code: string,
+  name: string,
+  userId: string | null = null,
+) {
+  const room = rooms.get(code.trim().toUpperCase());
+  if (!room) return { error: "Salon introuvable" as const };
+
+  const alreadyHere = getRoomBySocket(socketId);
+  if (alreadyHere && alreadyHere.code !== room.code) {
+    abandonCurrentSeat(socketId);
+  }
+
+  if (room.players.some((p) => p.socketId === socketId || (userId && p.userId === userId))) {
+    return { error: "Tu es déjà joueur dans ce salon" as const };
+  }
+
+  const existing = room.observers.find(
+    (o) => o.socketId === socketId || (userId && o.userId === userId),
+  );
+  if (existing) {
+    const extra = userId ? evacuateUser(userId, room.code) : [];
+    const replaced = claimObserver(room, existing, socketId);
+    if (name.trim()) existing.name = sanitizeName(name);
+    return {
+      room,
+      observerId: existing.id,
+      replacedSocketIds: [...extra, ...(replaced ? [replaced] : [])],
+    };
+  }
+
+  const replacedSocketIds = userId ? evacuateUser(userId, room.code) : [];
+  const observer: Observer = {
+    id: makeId(),
+    name: sanitizeName(name) || "Observateur",
+    socketId,
+    disconnectedAt: null,
+    userId,
+  };
+  room.observers.push(observer);
+  socketRoom.set(socketId, room.code);
+  return { room, observerId: observer.id, replacedSocketIds };
+}
+
+function sanitizeTrace(cells: unknown): number[] {
+  if (!Array.isArray(cells)) return [];
+  const next: number[] = [];
+  for (const cell of cells) {
+    if (!Number.isInteger(cell) || cell < 0 || cell > 15) continue;
+    if (next.includes(cell)) continue;
+    next.push(cell);
+    if (next.length >= 16) break;
+  }
+  return next;
+}
+
+export function setPlayerTrace(socketId: string, cells: unknown) {
+  const room = getRoomBySocket(socketId);
+  if (!room || room.phase !== "playing") return;
+  const player = room.players.find((p) => p.socketId === socketId);
+  if (!player) return;
+  const path = sanitizeTrace(cells);
+  room.traces.set(player.id, path);
+  broadcast(room, "player:trace", { playerId: player.id, cells: path });
 }
 
 export function submitWord(socketId: string, cells: number[]): WordSubmitResult {

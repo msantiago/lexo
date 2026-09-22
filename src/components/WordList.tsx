@@ -1,12 +1,20 @@
 import { AnimatePresence, motion } from "framer-motion";
 import type { FoundWord } from "@shared/types";
 
-export default function WordList({ words }: { words: FoundWord[] }) {
+export default function WordList({
+  words,
+  title,
+  accent,
+}: {
+  words: FoundWord[];
+  title?: string;
+  accent?: string;
+}) {
   const total = words.reduce((sum, w) => sum + w.points, 0);
   return (
-    <aside className="word-list">
+    <aside className="word-list" style={accent ? { borderColor: accent } : undefined}>
       <h3>
-        Tes mots · {words.length} · {total} pts
+        {title ?? `Tes mots · ${words.length} · ${total} pts`}
       </h3>
       <ul className="words">
         <AnimatePresence initial={false}>

@@ -35,9 +35,19 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
     <div className="screen results">
       <div className="results-head">
         <p className="times-up-label">Temps écoulé</p>
-        <h1>{solo ? "Bien joué !" : `${roundWinner?.name} gagne la manche`}</h1>
+        <h1>
+          {room.observing
+            ? solo
+              ? `${room.players[0]?.name ?? "Solo"} a terminé`
+              : `${roundWinner?.name} gagne la manche`
+            : solo
+              ? "Bien joué !"
+              : `${roundWinner?.name} gagne la manche`}
+        </h1>
         <p>
-          {you ? (
+          {room.observing ? (
+            <span className="observe-badge">Observateur</span>
+          ) : you ? (
             <>
               Cette manche : <b>{you.roundScore} pts</b> · Total : <b>{you.totalScore} pts</b>
             </>
@@ -60,14 +70,19 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
           <div className="results-board-row">
             {room.grid && <MiniGrid grid={room.grid} />}
             <div className="results-actions">
-              {isHost ? (
+              {room.observing ? (
+                <p className="hint">Tu observes la synthèse de cette manche.</p>
+              ) : isHost ? (
                 <button type="button" className="btn btn-gold" onClick={onNext}>
                   Manche suivante
                 </button>
               ) : (
                 <p className="hint">En attente de l’hôte pour la manche suivante…</p>
               )}
-              <LeaveButton onLeave={onLeave} />
+              <LeaveButton
+                onLeave={onLeave}
+                confirmLabel={room.observing ? "Arrêter d’observer ?" : undefined}
+              />
               {admin && onCloseRoom && (
                 <LeaveButton
                   onLeave={onCloseRoom}
@@ -128,7 +143,7 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
                   <h3 className="recap-title">Mots uniques</h3>
                   <ul className="words recap-words">
                     {summary.unique.map((w) => (
-                      <UniqueWordRow key={w.key} word={w} youId={room.you.id} canLike={!solo} />
+                      <UniqueWordRow key={w.key} word={w} youId={room.you.id} canLike={!solo && !room.observing} />
                     ))}
                   </ul>
                 </>
@@ -139,7 +154,7 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
                   <h3 className="recap-title">Mots en commun (0 pt)</h3>
                   <ul className="words recap-words">
                     {summary.shared.map((w) => (
-                      <SharedWordRow key={w.key} word={w} youId={room.you.id} canLike={!solo} />
+                      <SharedWordRow key={w.key} word={w} youId={room.you.id} canLike={!solo && !room.observing} />
                     ))}
                   </ul>
                 </>
@@ -163,7 +178,7 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
                             {w.names.map((n) => n.name).join(", ")}
                           </small>
                         </span>
-                        {!w.added && (
+                        {!w.added && !room.observing && (
                           <button
                             type="button"
                             className="chip on add-word"

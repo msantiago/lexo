@@ -1343,6 +1343,43 @@ button {
   gap: 2px;
 }
 
+.observe-badge {
+  display: inline-flex;
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(91, 168, 255, 0.28);
+  color: #dbeafe;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.observe-players {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.observe-player {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--cream);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.observe-player.active {
+  background: var(--player-color, var(--gold));
+  color: var(--ink);
+  border-color: transparent;
+}
+
 .play-top-actions {
   display: flex;
   justify-content: flex-end;
@@ -1579,6 +1616,13 @@ button {
   box-shadow:
     0 8px 0 #b8862c,
     0 0 0 4px rgba(232, 184, 74, 0.35),
+    0 16px 24px rgba(0, 0, 0, 0.3);
+}
+
+.board-wrap[style*="--path-accent"] .die.active {
+  box-shadow:
+    0 8px 0 #b8862c,
+    0 0 0 4px color-mix(in srgb, var(--path-accent) 55%, transparent),
     0 16px 24px rgba(0, 0, 0, 0.3);
 }
 
@@ -2104,6 +2148,10 @@ button {
   text-align: center;
 }
 
+.lobby-group + .lobby-group {
+  margin-top: 22px;
+}
+
 .lobby-rooms {
   list-style: none;
   margin: 0;
@@ -2112,6 +2160,10 @@ button {
   gap: 10px;
   max-height: min(42vh, 420px);
   overflow: auto;
+}
+
+.lobby-list:has(.lobby-group + .lobby-group) .lobby-rooms {
+  max-height: min(28vh, 280px);
 }
 
 .lobby-room {
@@ -2153,6 +2205,25 @@ button {
 .lobby-room-phase.started {
   color: var(--ink);
   background: var(--gold);
+}
+
+.lobby-room-kind {
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.lobby-room-kind.solo {
+  color: var(--ink);
+  background: var(--ivory);
+}
+
+.lobby-room-kind.collective {
+  color: var(--cream);
+  background: rgba(91, 168, 255, 0.35);
 }
 
 .lobby-room-count {
@@ -2252,6 +2323,14 @@ button {
 .lobby-room-actions {
   display: grid;
   gap: 8px;
+}
+
+.lobby-room-actions.admin-actions {
+  grid-template-columns: 1fr 1fr;
+}
+
+.lobby-room-actions.admin-actions > :last-child {
+  grid-column: 1 / -1;
 }
 
 .offline {

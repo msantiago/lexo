@@ -19,7 +19,8 @@ export default function Lobby({ room, isHost, admin, onSettings, onStart, onLeav
     <div className="screen lobby">
       <div>
         <section className="card">
-          <h2>Autour de la table</h2>
+          {room.observing && <p className="observe-badge">Observateur</p>}
+          <h2>{room.observing ? "Salon observé" : "Autour de la table"}</h2>
           <div className="players">
             {room.players.map((p) => (
               <div className={`player-chip ${p.connected ? "" : "offline"}`} key={p.id}>
@@ -37,7 +38,9 @@ export default function Lobby({ room, isHost, admin, onSettings, onStart, onLeav
         </section>
 
         <div className="btn-row" style={{ marginTop: 16 }}>
-          {isHost ? (
+          {room.observing ? (
+            <p className="hint">Tu observes ce salon — la partie commencera sans toi.</p>
+          ) : isHost ? (
             <button
               className="btn btn-gold"
               onClick={() => {
@@ -50,7 +53,11 @@ export default function Lobby({ room, isHost, admin, onSettings, onStart, onLeav
           ) : (
             <p className="hint">En attente de l’hôte…</p>
           )}
-          <LeaveButton onLeave={onLeave} label="Quitter" />
+          <LeaveButton
+            onLeave={onLeave}
+            label="Quitter"
+            confirmLabel={room.observing ? "Arrêter d’observer ?" : undefined}
+          />
           {admin && onCloseRoom && (
             <LeaveButton
               onLeave={onCloseRoom}
@@ -61,7 +68,7 @@ export default function Lobby({ room, isHost, admin, onSettings, onStart, onLeav
         </div>
       </div>
 
-      {isHost ? (
+      {isHost && !room.observing ? (
         <SettingsPanel settings={room.settings} onChange={onSettings} />
       ) : (
         <section className="card rules-summary">

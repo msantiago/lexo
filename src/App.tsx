@@ -13,7 +13,7 @@ import { installAudioUnlock } from "./lib/sfx";
 
 const SESSION_KEY = "lexo:session";
 
-type Session = { playerId: string; code: string };
+type Session = { playerId: string; code: string; observing?: boolean };
 
 function loadSession(): Session | null {
   try {
@@ -131,11 +131,15 @@ export default function App() {
 
   const leave = () => {
     const current = roomRef.current;
+    const observing = Boolean(current?.observing);
     const othersOnline = Boolean(
       current?.players.some((player) => player.id !== playerId && player.connected),
     );
     const keepSeat = Boolean(
-      current && (current.phase === "playing" || current.phase === "results") && othersOnline,
+      !observing &&
+        current &&
+        (current.phase === "playing" || current.phase === "results") &&
+        othersOnline,
     );
     socket.emit("room:leave");
     if (!keepSeat) clearLocalSession();
@@ -176,6 +180,7 @@ export default function App() {
           onSolo={() => socket.emit("room:create", { name, solo: true })}
           onCreate={() => socket.emit("room:create", { name, solo: false })}
           onJoin={(code) => socket.emit("room:join", { code, name })}
+          onObserve={(code) => socket.emit("room:observe", { code, name })}
           onCloseRoom={closeRoom}
         />
       )}
