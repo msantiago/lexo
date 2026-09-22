@@ -72,6 +72,8 @@ button {
   display: flex;
   flex-direction: column;
   min-height: 100dvh;
+  /* Room for the fixed credits footer on tall screens (results, etc.). */
+  padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
 }
 
 .toast {
@@ -125,14 +127,29 @@ button {
 }
 
 .credits {
-  margin-top: auto;
-  flex-shrink: 0;
-  padding: 24px 16px max(16px, env(safe-area-inset-bottom));
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  margin-top: 0;
+  padding: 14px 16px max(12px, env(safe-area-inset-bottom, 0px));
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.04em;
   color: rgba(255, 246, 234, 0.48);
   text-align: center;
+  background: linear-gradient(
+    180deg,
+    rgba(8, 36, 33, 0) 0%,
+    rgba(8, 36, 33, 0.88) 28%,
+    var(--felt-dark) 55%
+  );
+  pointer-events: none;
+}
+
+.credits a {
+  pointer-events: auto;
 }
 
 .credits p {
@@ -145,7 +162,7 @@ button {
   flex-wrap: wrap;
   justify-content: center;
   gap: 8px 16px;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .legal-links a,
