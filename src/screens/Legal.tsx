@@ -40,7 +40,7 @@ export function Privacy() {
       <p>
         Le responsable du traitement est Marc-Antoine Santiago, éditeur de Lexo. Pour toute
         question ou demande relative à tes données, utilise le contact indiqué sur l’écran de
-        consentement Google, ou le nom affiché en bas de la page d’accueil.
+        consentement Google, ou le nom affiché en bas de chaque page.
       </p>
 
       <h2>Données collectées</h2>

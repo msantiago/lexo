@@ -69,7 +69,11 @@ button {
 .app {
   position: relative;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
   min-height: 100dvh;
+  /* Room for the fixed credits footer on tall screens (results, etc.). */
+  padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
 }
 
 .toast {
@@ -97,10 +101,10 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-height: 100dvh;
+  flex: 1 0 auto;
   box-sizing: border-box;
   padding-top: 8vh;
-  padding-bottom: max(24px, env(safe-area-inset-bottom));
+  padding-bottom: 24px;
   gap: 28px;
 }
 
@@ -123,13 +127,29 @@ button {
 }
 
 .credits {
-  margin-top: auto;
-  padding-top: 24px;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  margin-top: 0;
+  padding: 14px 16px max(12px, env(safe-area-inset-bottom, 0px));
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.04em;
   color: rgba(255, 246, 234, 0.48);
   text-align: center;
+  background: linear-gradient(
+    180deg,
+    rgba(8, 36, 33, 0) 0%,
+    rgba(8, 36, 33, 0.88) 28%,
+    var(--felt-dark) 55%
+  );
+  pointer-events: none;
+}
+
+.credits a {
+  pointer-events: auto;
 }
 
 .credits p {
@@ -142,7 +162,7 @@ button {
   flex-wrap: wrap;
   justify-content: center;
   gap: 8px 16px;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .legal-links a,
@@ -157,9 +177,10 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
+  flex: 1 0 auto;
   gap: 24px;
   padding-top: max(24px, env(safe-area-inset-top));
-  padding-bottom: max(40px, env(safe-area-inset-bottom));
+  padding-bottom: 24px;
 }
 
 .legal-logo {

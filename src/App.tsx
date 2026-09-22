@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { GameSettings, RoomView } from "@shared/types";
+import CreditsFooter from "./components/CreditsFooter";
 import Home from "./screens/Home";
 import { Privacy, Terms } from "./screens/Legal";
 import Lobby from "./screens/Lobby";
@@ -202,6 +203,7 @@ export default function App() {
           onCloseRoom={() => closeRoom(room.code)}
         />
       )}
+      <CreditsFooter />
     </div>
   );
 }
