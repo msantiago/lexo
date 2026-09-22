@@ -58,9 +58,10 @@ function notifyNtfy(title: string, body: string) {
 }
 
 export function notifyRoomCreated(room: { code: string; solo: boolean; hostName: string }) {
-  if (room.solo) return;
-  const title = "Nouveau salon Lexo";
-  const body = `${room.hostName} a créé le salon ${room.code}`;
+  const title = room.solo ? "Nouvelle partie solo Lexo" : "Nouveau salon Lexo";
+  const body = room.solo
+    ? `${room.hostName} a lancé une partie solo (${room.code})`
+    : `${room.hostName} a créé le salon ${room.code}`;
   notifyTelegram(title, body);
   notifyNtfy(title, body);
 }
