@@ -35,6 +35,7 @@ type Props = {
 };
 
 export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
+  const observing = room.observing;
   const [drawPath, setDrawPath] = useState<number[]>([]);
   const [flash, setFlash] = useState<"success" | "fail" | null>(null);
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean; id: number } | null>(
@@ -45,8 +46,15 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
   const [now, setNow] = useState(Date.now());
   const [bursts, setBursts] = useState<ScoreBurstItem[]>([]);
   const [showOtherScores, setShowOtherScores] = useState(loadShowOtherScores);
+  const [watchingId, setWatchingId] = useState<string | null>(
+    room.players.find((p) => p.connected)?.id ?? room.players[0]?.id ?? null,
+  );
+  const [watchPinned, setWatchPinned] = useState(false);
+  const [livePaths, setLivePaths] = useState<Record<string, number[]>>({});
   const showOtherScoresRef = useRef(showOtherScores);
+  const watchPinnedRef = useRef(watchPinned);
   showOtherScoresRef.current = showOtherScores;
+  watchPinnedRef.current = watchPinned;
   const removeBurst = useCallback((id: number) => {
     setBursts((list) => list.filter((item) => item.id !== id));
   }, []);
@@ -58,9 +66,15 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
     });
   }, []);
 
+  const watched =
+    room.players.find((p) => p.id === watchingId) ?? room.players[0] ?? null;
   const typedPath =
     typed && room.grid ? findPathForWord(room.grid, typed) : null;
-  const path = typedPath?.length ? typedPath : drawPath;
+  const path = observing
+    ? livePaths[watched?.id ?? ""] ?? watched?.path ?? []
+    : typedPath?.length
+      ? typedPath
+      : drawPath;
 
   const pathRef = useRef(path);
   const typedRef = useRef(typed);
@@ -76,7 +90,41 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
     setLocked(false);
     setFeedback(null);
     setBursts([]);
+    setLivePaths({});
+    setWatchPinned(false);
+    setWatchingId(room.players.find((p) => p.connected)?.id ?? room.players[0]?.id ?? null);
   }, [room.startedAt]);
+
+  useEffect(() => {
+    if (!observing) return;
+    const onTrace = ({ playerId, cells }: { playerId: string; cells: number[] }) => {
+      setLivePaths((prev) => ({ ...prev, [playerId]: cells }));
+      if (!watchPinnedRef.current && cells.length > 0) setWatchingId(playerId);
+    };
+    socket.on("player:trace", onTrace);
+    return () => {
+      socket.off("player:trace", onTrace);
+    };
+  }, [observing]);
+
+  useEffect(() => {
+    if (observing) return;
+    socket.emit("game:trace", { cells: path });
+  }, [observing, path]);
+
+  const watchedWordCount = watched?.words?.length ?? 0;
+  const prevWatchedCount = useRef(watchedWordCount);
+  useEffect(() => {
+    if (!observing) {
+      prevWatchedCount.current = watchedWordCount;
+      return;
+    }
+    if (watchedWordCount > prevWatchedCount.current) {
+      setFlash("success");
+      window.setTimeout(() => setFlash(null), 420);
+    }
+    prevWatchedCount.current = watchedWordCount;
+  }, [observing, watchedWordCount]);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 100);
@@ -158,7 +206,7 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
 
     const onKey = (e: KeyboardEvent) => {
       unlockAudio();
-      if (lockedRef.current) return;
+      if (lockedRef.current || observing) return;
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) {
         return;
@@ -212,7 +260,7 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
 
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [room.grid, room.startedAt]);
+  }, [room.grid, room.startedAt, observing]);
 
   const remaining = room.endsAt ? Math.max(0, room.endsAt - now) : 0;
   const timeUp = remaining <= 0;
@@ -226,6 +274,7 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
         <div className="play-top-meta">
           <div className="muted">Manche {room.round}</div>
           <div className="muted">{room.code}</div>
+          {observing && <div className="observe-badge">Observateur</div>}
         </div>
         <Timer remainingMs={remaining} totalMs={room.settings.durationSec * 1000} />
         <div className="play-top-actions">
@@ -240,7 +289,7 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
           <LeaveButton
             onLeave={onLeave}
             label="Quitter"
-            confirmLabel="Confirmer ?"
+            confirmLabel={observing ? "Arrêter d’observer ?" : "Confirmer ?"}
             compact
           />
         </div>
@@ -248,18 +297,44 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
 
       <ScorePills
         players={room.players}
-        youId={room.you.id}
-        showOtherScores={showOtherScores}
-        onToggleOtherScores={room.players.length > 1 ? toggleOtherScores : undefined}
+        youId={observing ? "" : room.you.id}
+        showOtherScores={observing || showOtherScores}
+        onToggleOtherScores={
+          !observing && room.players.length > 1 ? toggleOtherScores : undefined
+        }
       />
       <Scoreboard
         players={room.players}
-        youId={room.you.id}
-        showOtherScores={showOtherScores}
-        onToggleOtherScores={room.players.length > 1 ? toggleOtherScores : undefined}
+        youId={observing ? "" : room.you.id}
+        showOtherScores={observing || showOtherScores}
+        onToggleOtherScores={
+          !observing && room.players.length > 1 ? toggleOtherScores : undefined
+        }
       />
 
       <div className="stage">
+        {observing && room.players.length > 0 && (
+          <div className="observe-players" role="tablist" aria-label="Joueur observé">
+            {room.players.map((player) => (
+              <button
+                key={player.id}
+                type="button"
+                role="tab"
+                aria-selected={watched?.id === player.id}
+                className={`observe-player${watched?.id === player.id ? " active" : ""}${
+                  player.connected ? "" : " offline"
+                }`}
+                style={{ ["--player-color" as string]: player.color }}
+                onClick={() => {
+                  setWatchingId(player.id);
+                  setWatchPinned(true);
+                }}
+              >
+                {player.name}
+              </button>
+            ))}
+          </div>
+        )}
         <div className={`preview ${preview ? "" : "empty"}`}>
           {preview
             ? preview.split("").map((ch, i) => (
@@ -267,7 +342,11 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
                   {ch}
                 </span>
               ))
-            : "Glisse ou tape un mot"}
+            : observing
+              ? watched
+                ? `${watched.name} forme un mot…`
+                : "En attente des joueurs"
+              : "Glisse ou tape un mot"}
         </div>
         {room.grid && (
           <div className="board-burst-host">
@@ -276,9 +355,10 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
               grid={room.grid}
               path={path}
               flash={flash}
-              disabled={frozen}
+              disabled={observing || frozen}
+              accent={observing ? watched?.color : undefined}
               onPathChange={(p) => {
-                if (lockedRef.current) return;
+                if (observing || lockedRef.current) return;
                 setTyped("");
                 setDrawPath(p);
               }}
@@ -287,16 +367,30 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
             <ScoreBursts bursts={bursts} onDone={removeBurst} />
           </div>
         )}
-        {room.reroll && !timeUp && (
+        {room.reroll && !timeUp && !observing && (
           <RerollBar reroll={room.reroll} players={room.players} now={now} deal={room.startedAt} />
         )}
         <div key={feedback?.id} className={`feedback ${feedback?.ok ? "ok" : ""}`}>
           {feedback?.text ?? ""}
         </div>
-        <p className="hint">Clavier · Entrée pour valider · Q = Qu</p>
+        <p className="hint">
+          {observing
+            ? watchPinned
+              ? `Tu suis ${watched?.name ?? "un joueur"} — clique un autre prénom pour changer`
+              : "Les traces s’affichent en direct"
+            : "Clavier · Entrée pour valider · Q = Qu"}
+        </p>
       </div>
 
-      <WordList words={room.you.words} />
+      <WordList
+        words={observing ? watched?.words ?? [] : room.you.words}
+        title={
+          observing && watched
+            ? `Mots de ${watched.name} · ${watched.words?.length ?? 0} · ${watched.words?.reduce((sum, w) => sum + w.points, 0) ?? 0} pts`
+            : undefined
+        }
+        accent={observing ? watched?.color : undefined}
+      />
       {timeUp && (
         <div className="times-up-overlay">
           <div>

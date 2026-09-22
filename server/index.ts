@@ -19,11 +19,14 @@ import {
   sendChat,
   toggleWordLike,
   leaveSocket,
+  listAdminRooms,
   listPublicRooms,
+  observeRoom,
   rejoinByUserId,
   rejoinRoom,
   setBroadcast,
   setLobbyBroadcast,
+  setPlayerTrace,
   startGame,
   submitWord,
   updateSettings,
@@ -136,6 +139,18 @@ if (process.env.NODE_ENV === "production") {
 }
 
 setBroadcast((room, event, payload) => {
+  if (event === "player:trace") {
+    for (const observer of room.observers) {
+      if (observer.socketId) io.to(observer.socketId).emit("player:trace", payload);
+    }
+    return;
+  }
+  if (event === "observer:closed") {
+    for (const observer of room.observers) {
+      if (observer.socketId) io.to(observer.socketId).emit("room:closed");
+    }
+    return;
+  }
   for (const player of room.players) {
     if (!player.socketId) continue;
     if (event === "room:state") {
@@ -144,10 +159,20 @@ setBroadcast((room, event, payload) => {
       io.to(player.socketId).emit(event, payload);
     }
   }
+  for (const observer of room.observers) {
+    if (!observer.socketId) continue;
+    if (event === "room:state") {
+      io.to(observer.socketId).emit("room:state", viewFor(room, observer.id, true));
+    } else {
+      io.to(observer.socketId).emit(event, payload);
+    }
+  }
 });
 
-setLobbyBroadcast((rooms) => {
-  io.emit("lobby:rooms", rooms);
+setLobbyBroadcast((publicRooms, adminRooms) => {
+  for (const sock of io.sockets.sockets.values()) {
+    sock.emit("lobby:rooms", sock.data.isAdmin ? adminRooms : publicRooms);
+  }
 });
 
 function notifyReplaced(socketIds: string[] | undefined) {
@@ -163,19 +188,18 @@ io.on("connection", async (socket) => {
   socket.data.userEmail = session?.user.email ?? null;
   socket.data.isAdmin = isAdminUser(session?.user);
   socket.emit("session:role", { admin: Boolean(socket.data.isAdmin) });
-  socket.emit("lobby:rooms", listPublicRooms());
+  socket.emit("lobby:rooms", lobbyRoomsFor(socket));
 
   if (userId) {
     const rejoined = rejoinByUserId(socket.id, userId);
     if (rejoined) {
       notifyReplaced(rejoined.replacedSocketIds);
-      socket.emit("session", { playerId: rejoined.playerId, code: rejoined.room.code });
-      socket.emit("room:state", viewFor(rejoined.room, rejoined.playerId));
+      emitMembership(socket, rejoined.room, rejoined.playerId, rejoined.observing);
     }
   }
 
   socket.on("lobby:list", () => {
-    socket.emit("lobby:rooms", listPublicRooms());
+    socket.emit("lobby:rooms", lobbyRoomsFor(socket));
   });
 
   socket.on("room:create", ({ name, solo }: { name?: string; solo?: boolean }) => {
@@ -187,8 +211,7 @@ io.on("connection", async (socket) => {
         userIdOf(socket),
       );
       notifyReplaced(replacedSocketIds);
-      socket.emit("session", { playerId, code: room.code });
-      socket.emit("room:state", viewFor(room, playerId));
+      emitMembership(socket, room, playerId);
     } catch (err) {
       socket.emit("notice", { message: "Impossible de créer le salon" });
       console.error(err);
@@ -202,8 +225,21 @@ io.on("connection", async (socket) => {
       return;
     }
     notifyReplaced(result.replacedSocketIds);
-    socket.emit("session", { playerId: result.playerId, code: result.room.code });
-    socket.emit("room:state", viewFor(result.room, result.playerId));
+    emitMembership(socket, result.room, result.playerId);
+  });
+
+  socket.on("room:observe", ({ code, name }: { code?: string; name?: string }) => {
+    if (!isAdminOf(socket)) {
+      socket.emit("notice", { message: "Action réservée aux administrateurs" });
+      return;
+    }
+    const result = observeRoom(socket.id, code ?? "", name ?? "", userIdOf(socket));
+    if ("error" in result) {
+      socket.emit("notice", { message: result.error });
+      return;
+    }
+    notifyReplaced(result.replacedSocketIds);
+    emitMembership(socket, result.room, result.observerId, true);
   });
 
   socket.on(
@@ -215,8 +251,7 @@ io.on("connection", async (socket) => {
         return;
       }
       notifyReplaced(result.replacedSocketIds);
-      socket.emit("session", { playerId: result.playerId, code: result.room.code });
-      socket.emit("room:state", viewFor(result.room, result.playerId));
+      emitMembership(socket, result.room, result.playerId, result.observing);
     },
   );
 
@@ -233,6 +268,10 @@ io.on("connection", async (socket) => {
   socket.on("game:word", ({ cells }: { cells?: number[] }) => {
     const result = submitWord(socket.id, cells ?? []);
     socket.emit("word:result", result);
+  });
+
+  socket.on("game:trace", ({ cells }: { cells?: number[] }) => {
+    setPlayerTrace(socket.id, cells ?? []);
   });
 
   socket.on("game:reroll", () => {
@@ -314,4 +353,18 @@ function userIdOf(socket: { data: { userId?: unknown } }): string | null {
 
 function isAdminOf(socket: { data: { isAdmin?: unknown } }): boolean {
   return socket.data.isAdmin === true;
+}
+
+function lobbyRoomsFor(socket: { data: { isAdmin?: unknown } }) {
+  return isAdminOf(socket) ? listAdminRooms() : listPublicRooms();
+}
+
+function emitMembership(
+  socket: { emit: (event: string, payload: unknown) => void },
+  room: Parameters<typeof viewFor>[0],
+  viewerId: string,
+  observing = false,
+) {
+  socket.emit("session", { playerId: viewerId, code: room.code, observing });
+  socket.emit("room:state", viewFor(room, viewerId, observing));
 }

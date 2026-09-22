@@ -9,6 +9,7 @@ type Props = {
   path: number[];
   flash: Flash;
   disabled?: boolean;
+  accent?: string;
   onPathChange: (path: number[]) => void;
   onSubmit: (path: number[]) => void;
 };
@@ -48,6 +49,7 @@ export default function Board({
   path,
   flash,
   disabled,
+  accent,
   onPathChange,
   onSubmit,
 }: Props) {
@@ -149,8 +151,11 @@ export default function Board({
 
   const line = points.map((p) => `${p.x},${p.y}`).join(" ");
 
+  const stroke = accent || "#f0d78c";
+  const strokeSoft = accent || "rgba(15, 61, 56, 0.5)";
+
   return (
-    <div ref={wrapRef} className="board-wrap">
+    <div ref={wrapRef} className="board-wrap" style={accent ? { ["--path-accent" as string]: accent } : undefined}>
       <div className="board">
         {grid.map((cell, i) => (
           <div
@@ -177,7 +182,7 @@ export default function Board({
             <polyline
               points={line}
               fill="none"
-              stroke="rgba(15, 61, 56, 0.5)"
+              stroke={accent ? `${stroke}99` : strokeSoft}
               strokeWidth="5.4"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -185,7 +190,7 @@ export default function Board({
             <polyline
               points={line}
               fill="none"
-              stroke="#f0d78c"
+              stroke={stroke}
               strokeWidth="2.6"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -198,7 +203,7 @@ export default function Board({
             cx={p.x}
             cy={p.y}
             r={i === points.length - 1 ? 3.6 : 2.4}
-            fill={i === points.length - 1 ? "#fff6ea" : "#e8b84a"}
+            fill={i === points.length - 1 ? "#fff6ea" : stroke}
           />
         ))}
       </svg>

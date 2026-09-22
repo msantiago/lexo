@@ -34,20 +34,22 @@ export default function RoundChat({ room }: { room: RoomView }) {
           <ChatLine key={message.id} message={message} youId={room.you.id} />
         ))}
       </div>
-      <form className="chat-form" onSubmit={send}>
-        <input
-          id="round-chat"
-          maxLength={200}
-          placeholder="Un mot pour la table…"
-          value={draft}
-          autoComplete="off"
-          aria-label="Message"
-          onChange={(e) => setDraft(e.target.value)}
-        />
-        <button className="btn btn-ivory" type="submit" disabled={!draft.trim()}>
-          Envoyer
-        </button>
-      </form>
+      {!room.observing && (
+        <form className="chat-form" onSubmit={send}>
+          <input
+            id="round-chat"
+            maxLength={200}
+            placeholder="Un mot pour la table…"
+            value={draft}
+            autoComplete="off"
+            aria-label="Message"
+            onChange={(e) => setDraft(e.target.value)}
+          />
+          <button className="btn btn-ivory" type="submit" disabled={!draft.trim()}>
+            Envoyer
+          </button>
+        </form>
+      )}
     </section>
   );
 }

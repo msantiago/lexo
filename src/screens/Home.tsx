@@ -17,10 +17,20 @@ type Props = {
   onSolo: () => void;
   onCreate: () => void;
   onJoin: (code: string) => void;
+  onObserve?: (code: string) => void;
   onCloseRoom?: (code: string) => void;
 };
 
-export default function Home({ name, admin, onName, onSolo, onCreate, onJoin, onCloseRoom }: Props) {
+export default function Home({
+  name,
+  admin,
+  onName,
+  onSolo,
+  onCreate,
+  onJoin,
+  onObserve,
+  onCloseRoom,
+}: Props) {
   const [rooms, setRooms] = useState<LobbyRoom[]>([]);
   const [page, setPage] = useState<"play" | "profile">("play");
   const { data: session } = authClient.useSession();
@@ -100,37 +110,41 @@ export default function Home({ name, admin, onName, onSolo, onCreate, onJoin, on
       </div>
 
       <section className="lobby-list" aria-live="polite">
-        <h2>Salons en cours</h2>
-        {rooms.length === 0 ? (
-          <p className="hint">Aucun salon pour le moment. Crée-en un pour commencer.</p>
+        {admin ? (
+          <>
+            <LobbyRoomGroup
+              title="Salons collectifs"
+              empty="Aucun salon collectif pour le moment."
+              rooms={rooms.filter((room) => !room.solo)}
+              name={name}
+              ready={ready}
+              admin
+              onJoin={onJoin}
+              onObserve={onObserve}
+              onCloseRoom={onCloseRoom}
+            />
+            <LobbyRoomGroup
+              title="Parties solo"
+              empty="Aucune partie solo en cours."
+              rooms={rooms.filter((room) => room.solo)}
+              name={name}
+              ready={ready}
+              admin
+              onJoin={onJoin}
+              onObserve={onObserve}
+              onCloseRoom={onCloseRoom}
+            />
+          </>
         ) : (
-          <ul className="lobby-rooms">
-            {rooms.map((room) => {
-              const folded = foldPlayerName(name);
-              const mineOffline = room.players.some(
-                (p) => foldPlayerName(p.name) === folded && !p.connected,
-              );
-              const nameTaken = room.players.some(
-                (p) => foldPlayerName(p.name) === folded && p.connected,
-              );
-              const canRejoin = ready && mineOffline;
-              return (
-                <LobbyRoomCard
-                  key={room.code}
-                  room={room}
-                  nameTaken={nameTaken}
-                  canRejoin={canRejoin}
-                  canJoin={canRejoin || (ready && room.playerCount < MAX_PLAYERS && !nameTaken)}
-                  admin={admin}
-                  onJoin={() => {
-                    unlockAudio();
-                    onJoin(room.code);
-                  }}
-                  onClose={onCloseRoom ? () => onCloseRoom(room.code) : undefined}
-                />
-              );
-            })}
-          </ul>
+          <LobbyRoomGroup
+            title="Salons en cours"
+            empty="Aucun salon pour le moment. Crée-en un pour commencer."
+            rooms={rooms}
+            name={name}
+            ready={ready}
+            onJoin={onJoin}
+            onCloseRoom={onCloseRoom}
+          />
         )}
       </section>
         </>
@@ -146,6 +160,73 @@ export default function Home({ name, admin, onName, onSolo, onCreate, onJoin, on
   );
 }
 
+function LobbyRoomGroup({
+  title,
+  empty,
+  rooms,
+  name,
+  ready,
+  admin,
+  onJoin,
+  onObserve,
+  onCloseRoom,
+}: {
+  title: string;
+  empty: string;
+  rooms: LobbyRoom[];
+  name: string;
+  ready: boolean;
+  admin?: boolean;
+  onJoin: (code: string) => void;
+  onObserve?: (code: string) => void;
+  onCloseRoom?: (code: string) => void;
+}) {
+  return (
+    <div className="lobby-group">
+      <h2>{title}</h2>
+      {rooms.length === 0 ? (
+        <p className="hint">{empty}</p>
+      ) : (
+        <ul className="lobby-rooms">
+          {rooms.map((room) => {
+            const folded = foldPlayerName(name);
+            const mineOffline = room.players.some(
+              (p) => foldPlayerName(p.name) === folded && !p.connected,
+            );
+            const nameTaken = room.players.some(
+              (p) => foldPlayerName(p.name) === folded && p.connected,
+            );
+            const canRejoin = ready && mineOffline;
+            return (
+              <LobbyRoomCard
+                key={room.code}
+                room={room}
+                nameTaken={nameTaken}
+                canRejoin={canRejoin}
+                canJoin={canRejoin || (ready && room.playerCount < MAX_PLAYERS && !nameTaken)}
+                admin={admin}
+                onJoin={() => {
+                  unlockAudio();
+                  onJoin(room.code);
+                }}
+                onObserve={
+                  onObserve
+                    ? () => {
+                        unlockAudio();
+                        onObserve(room.code);
+                      }
+                    : undefined
+                }
+                onClose={onCloseRoom ? () => onCloseRoom(room.code) : undefined}
+              />
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function LobbyRoomCard({
   room,
   nameTaken,
@@ -153,6 +234,7 @@ function LobbyRoomCard({
   canJoin,
   admin,
   onJoin,
+  onObserve,
   onClose,
 }: {
   room: LobbyRoom;
@@ -161,6 +243,7 @@ function LobbyRoomCard({
   canJoin: boolean;
   admin?: boolean;
   onJoin: () => void;
+  onObserve?: () => void;
   onClose?: () => void;
 }) {
   const full = room.playerCount >= MAX_PLAYERS;
@@ -187,6 +270,11 @@ function LobbyRoomCard({
         <span className={`lobby-room-phase ${started ? "started" : "waiting"}`}>
           {phaseLabel(room.phase)}
         </span>
+        {admin && (
+          <span className={`lobby-room-kind ${room.solo ? "solo" : "collective"}`}>
+            {room.solo ? "Solo" : "Collectif"}
+          </span>
+        )}
         <span className="lobby-room-count">{countLabel}</span>
       </div>
       {started && (
@@ -218,10 +306,17 @@ function LobbyRoomCard({
           </li>
         ))}
       </ul>
-      <div className="lobby-room-actions">
-        <button className="btn btn-ghost" type="button" disabled={!canJoin} onClick={onJoin}>
-          {joinLabel}
-        </button>
+      <div className={`lobby-room-actions${admin && onObserve ? " admin-actions" : ""}`}>
+        {admin && onObserve && (
+          <button className="btn btn-gold" type="button" onClick={onObserve}>
+            Observer
+          </button>
+        )}
+        {!room.solo && (
+          <button className="btn btn-ghost" type="button" disabled={!canJoin} onClick={onJoin}>
+            {joinLabel}
+          </button>
+        )}
         {admin && onClose && (
           <LeaveButton
             onLeave={onClose}
