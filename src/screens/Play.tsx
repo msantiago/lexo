@@ -205,6 +205,7 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
     if (!grid) return;
 
     const onKey = (e: KeyboardEvent) => {
+      if (document.querySelector("[data-confirm-dialog]")) return;
       unlockAudio();
       if (lockedRef.current || observing) return;
       const el = e.target as HTMLElement | null;
@@ -282,14 +283,24 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
             <LeaveButton
               onLeave={onCloseRoom}
               label="Fermer"
-              confirmLabel="Fermer ?"
+              title="Fermer cette partie ?"
+              message="Elle s’arrête pour tous les joueurs, y compris ceux qui sont en train de jouer."
+              confirmLabel="Fermer"
               compact
             />
           )}
           <LeaveButton
             onLeave={onLeave}
             label="Quitter"
-            confirmLabel={observing ? "Arrêter d’observer ?" : "Confirmer ?"}
+            title={observing ? "Arrêter d’observer ?" : "Quitter la partie ?"}
+            message={
+              observing
+                ? "Tu ne verras plus cette partie. Elle continue pour les joueurs."
+                : room.players.some((player) => player.id !== room.you.id && player.connected)
+                  ? "Tu sors de l’écran. Ta place reste ouverte jusqu’à la fin de la manche."
+                  : "Tu quittes cette partie."
+            }
+            confirmLabel={observing ? "Arrêter" : "Quitter"}
             compact
           />
         </div>
@@ -398,7 +409,17 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
             <h2>Manche terminée</h2>
             <p>Décompte des mots…</p>
             <div className="times-up-leave">
-              <LeaveButton onLeave={onLeave} label="Quitter" confirmLabel="Confirmer ?" />
+              <LeaveButton
+                onLeave={onLeave}
+                label="Quitter"
+                title="Quitter la partie ?"
+                message={
+                  observing
+                    ? "Tu ne verras plus cette partie. Elle continue pour les joueurs."
+                    : "Tu quittes avant la synthèse des mots."
+                }
+                confirmLabel={observing ? "Arrêter" : "Quitter"}
+              />
             </div>
           </div>
         </div>

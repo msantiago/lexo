@@ -1,6 +1,7 @@
-export default function LexoLogo() {
+export default function LexoLogo({ compact = false }: { compact?: boolean }) {
+  const Tag = compact ? "span" : "h1";
   return (
-    <h1 className="lexo-logo" aria-label="Lexo">
+    <Tag className={compact ? "lexo-logo lexo-logo-compact" : "lexo-logo"} aria-label="Lexo">
       <span className="lexo-letter">L</span>
       <span className="lexo-letter">E</span>
       <span className="lexo-letter x">X</span>
@@ -9,6 +10,6 @@ export default function LexoLogo() {
           <circle cx="50" cy="50" r="29" fill="none" stroke="currentColor" strokeWidth="18" />
         </svg>
       </span>
-    </h1>
+    </Tag>
   );
 }

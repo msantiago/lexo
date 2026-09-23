@@ -5,20 +5,19 @@ type Props = {
   image?: string | null;
   className?: string;
   color?: string;
+  online?: boolean;
 };
 
-export default function Avatar({ name, image, className = "", color }: Props) {
+export default function Avatar({ name, image, className = "", color, online = false }: Props) {
   const classes = `avatar ${className}`.trim();
   const initial = (name.trim().slice(0, 1) || "?").toUpperCase();
 
+  let face;
   if (isAvatarImage(image)) {
-    return <img className={`${classes} avatar-photo`} src={image ?? ""} alt="" />;
-  }
-
-  const id = parseAvatarId(image);
-  const preset = avatarPreset(id);
-  if (preset) {
-    return (
+    face = <img className={`${classes} avatar-photo`} src={image ?? ""} alt="" />;
+  } else {
+    const preset = avatarPreset(parseAvatarId(image));
+    face = preset ? (
       <span
         className={`${classes} avatar-emoji`}
         style={{ background: color ?? preset.color }}
@@ -26,12 +25,19 @@ export default function Avatar({ name, image, className = "", color }: Props) {
       >
         {preset.emoji}
       </span>
+    ) : (
+      <span className={`${classes} account-avatar`} style={color ? { background: color } : undefined}>
+        {initial}
+      </span>
     );
   }
 
+  if (!online) return face;
+
   return (
-    <span className={`${classes} account-avatar`} style={color ? { background: color } : undefined}>
-      {initial}
+    <span className="avatar-online">
+      {face}
+      <span className="presence-badge" role="img" aria-label="En ligne" />
     </span>
   );
 }

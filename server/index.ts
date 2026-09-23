@@ -11,6 +11,7 @@ import type { GameSettings } from "../shared/types.ts";
 import { isAdminUser } from "./admin.ts";
 import { auth, authProviders, findAuthUser, migrateAuth, sessionFromHeaders } from "./auth.ts";
 import { buildDirectory, playFor } from "./directory.ts";
+import { defineWord, normalizeDefineWord } from "./define.ts";
 import { dictionary } from "./dictionary.ts";
 import {
   closeRoom,
@@ -168,6 +169,26 @@ app.get("/api/me/games/:id", async (req, res) => {
     return;
   }
   res.json(game);
+});
+
+app.get("/api/define/:word", async (req, res) => {
+  const session = await sessionFromHeaders(req.headers);
+  if (!session?.user) {
+    res.status(401).json({ error: "Non connecté" });
+    return;
+  }
+  const word = normalizeDefineWord(String(req.params.word ?? ""));
+  if (!word) {
+    res.status(400).json({ error: "Mot invalide" });
+    return;
+  }
+  try {
+    const definition = await defineWord(word);
+    res.setHeader("Cache-Control", "private, max-age=86400");
+    res.json(definition);
+  } catch {
+    res.status(502).json({ error: "Définition indisponible" });
+  }
 });
 
 app.get("/health", (_req, res) => {
@@ -350,6 +371,10 @@ io.on("connection", async (socket) => {
   });
 
   socket.on("dict:add", ({ key }: { key?: string }) => {
+    if (!isAdminOf(socket)) {
+      socket.emit("notice", { message: "Action réservée aux administrateurs" });
+      return;
+    }
     const result = adoptRejectedWord(socket.id, key ?? "");
     if (result && "error" in result) socket.emit("notice", { message: result.error });
   });

@@ -88,6 +88,7 @@ export type LobbyPlayer = {
   id: string;
   name: string;
   color: string;
+  image: string | null;
   isHost: boolean;
   connected: boolean;
   totalScore: number;

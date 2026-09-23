@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { DirectoryUser } from "@shared/account";
 import Avatar from "../components/Avatar";
+import { WatchButton } from "../components/RoundActions";
 import { displayNameFromUser } from "../lib/auth-client";
 import { activityLabel } from "../lib/presence";
 import UserDetail from "./UserDetail";
@@ -8,17 +9,22 @@ import UserDetail from "./UserDetail";
 type Filter = "all" | "online" | "playing";
 
 type Props = {
-  onBack: () => void;
+  onBack?: () => void;
   onWatch?: (userId: string) => void;
+  listRequest?: number;
 };
 
-export default function Users({ onBack, onWatch }: Props) {
+export default function Users({ onBack, onWatch, listRequest = 0 }: Props) {
   const [users, setUsers] = useState<DirectoryUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const hasData = useRef(false);
+
+  useEffect(() => {
+    setSelectedId(null);
+  }, [listRequest]);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,9 +88,11 @@ export default function Users({ onBack, onWatch }: Props) {
     <div className="users-page">
       <section className="panel users-hero">
         <div className="profile-head">
-          <button className="btn btn-ghost" type="button" onClick={onBack}>
-            Retour
-          </button>
+          {onBack && (
+            <button className="nav-back" type="button" onClick={onBack}>
+              Retour
+            </button>
+          )}
           <div className="profile-identity">
             <div className="meta">
               <h1>Joueurs</h1>
@@ -134,21 +142,24 @@ export default function Users({ onBack, onWatch }: Props) {
       )}
 
       {visible.length > 0 && (
-        <div className="users-table-wrap">
-          <table className="users-table">
+        <div className="player-table-wrap">
+          <table className="player-table">
             <thead>
               <tr>
                 <th>Joueur</th>
-                <th>Présence</th>
-                <th className="num">Parties</th>
-                <th className="num">Mots</th>
-                <th className="num">Points</th>
-                <th className="num">Victoires</th>
+                <th className="col-wide">Statut</th>
+                <th className="col-wide num">Score</th>
+                <th className="col-wide num">Parties</th>
+                <th className="col-wide num">Mots</th>
+                <th className="col-wide num">Victoires</th>
+                <th className="col-wide col-action">
+                  <span className="visually-hidden">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
               {visible.map((user) => (
-                <UserRow
+                <PlayerRow
                   key={user.id}
                   user={user}
                   onOpen={() => setSelectedId(user.id)}
@@ -181,7 +192,7 @@ function FilterChip({
   );
 }
 
-function UserRow({
+function PlayerRow({
   user,
   onOpen,
   onWatch,
@@ -191,39 +202,56 @@ function UserRow({
   onWatch?: () => void;
 }) {
   const name = displayNameFromUser(user.name, null);
-  const activity = activityLabel(user.play, user.online);
+  const status = playerStatus(user);
+  const points = user.stats.totalPoints.toLocaleString("fr-FR");
+  const watchButton = () => (user.play && onWatch ? <WatchButton onClick={onWatch} /> : null);
   return (
-    <tr className={user.online ? "online" : "offline"}>
+    <tr>
       <th scope="row">
-        <button className="user-name" type="button" onClick={onOpen}>
-          <Avatar className="account-avatar" name={name} image={user.image} />
-          <span>
-            {user.online && <i className="presence-dot" aria-hidden />}
-            {name}
-          </span>
+        <button className="player-id" type="button" onClick={onOpen}>
+          <Avatar online={user.online} name={name} image={user.image} />
+          <strong>{name}</strong>
         </button>
       </th>
-      <td>
-        <div className="user-presence">
-          <span className={`user-status ${user.online ? "online" : "offline"}`}>
-            {user.online ? "En ligne" : "Hors ligne"}
-          </span>
-          {activity && (
-            <span className={`user-play ${user.play?.observing ? "observing" : user.play?.mode ?? "idle"}`}>
-              {activity}
-            </span>
-          )}
-          {user.play && onWatch && (
-            <button className="btn btn-gold btn-compact" type="button" onClick={onWatch}>
-              Regarder
-            </button>
-          )}
+      <td className={`col-wide player-status ${status.kind}`} title={status.label}>
+        {status.label}
+      </td>
+      <td className="col-wide num player-score">{points}</td>
+      <td className="col-wide num">{user.stats.gamesPlayed.toLocaleString("fr-FR")}</td>
+      <td className="col-wide num">{user.stats.wordsFound.toLocaleString("fr-FR")}</td>
+      <td className="col-wide num">{user.stats.wins.toLocaleString("fr-FR")}</td>
+      <td className="col-wide col-action">{watchButton()}</td>
+      <td className="col-compact">
+        <div className="player-side">
+          <div className="player-line">
+            <span className={`player-status ${status.kind}`}>{status.label}</span>
+            <span className="player-score">{points} pts</span>
+            {watchButton()}
+          </div>
+          <p className="player-meta">
+            {countLabel(user.stats.gamesPlayed, "partie", "parties")}
+            {" · "}
+            {countLabel(user.stats.wordsFound, "mot", "mots")}
+            {" · "}
+            {countLabel(user.stats.wins, "victoire", "victoires")}
+          </p>
         </div>
       </td>
-      <td className="num">{user.stats.gamesPlayed.toLocaleString("fr-FR")}</td>
-      <td className="num">{user.stats.wordsFound.toLocaleString("fr-FR")}</td>
-      <td className="num">{user.stats.totalPoints.toLocaleString("fr-FR")}</td>
-      <td className="num">{user.stats.wins.toLocaleString("fr-FR")}</td>
     </tr>
   );
+}
+
+function playerStatus(user: DirectoryUser): { label: string; kind: string } {
+  if (user.play) {
+    return {
+      label: activityLabel(user.play, user.online) ?? "En jeu",
+      kind: user.play.observing ? "observing" : user.play.mode,
+    };
+  }
+  if (user.online) return { label: "Au menu", kind: "idle" };
+  return { label: "Hors ligne", kind: "offline" };
+}
+
+function countLabel(value: number, one: string, many: string): string {
+  return `${value.toLocaleString("fr-FR")} ${value === 1 ? one : many}`;
 }

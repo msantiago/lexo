@@ -7,6 +7,7 @@ import type {
   SummaryWord,
   WordLike,
 } from "@shared/types";
+import { wordPoints } from "@shared/dice";
 import WordLink from "../components/WordLink";
 import LeaveButton from "../components/LeaveButton";
 import RoundChat from "../components/RoundChat";
@@ -81,13 +82,22 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
               )}
               <LeaveButton
                 onLeave={onLeave}
-                confirmLabel={room.observing ? "Arrêter d’observer ?" : undefined}
+                label="Quitter"
+                title={room.observing ? "Arrêter d’observer ?" : "Quitter la partie ?"}
+                message={
+                  room.observing
+                    ? "Tu ne verras plus la synthèse. La partie continue pour les joueurs."
+                    : "Tu quittes la table. Les autres peuvent enchaîner sans toi."
+                }
+                confirmLabel={room.observing ? "Arrêter" : "Quitter"}
               />
               {admin && onCloseRoom && (
                 <LeaveButton
                   onLeave={onCloseRoom}
                   label="Fermer le salon"
-                  confirmLabel="Confirmer : fermer ?"
+                  title="Fermer le salon ?"
+                  message="La partie s’arrête tout de suite, pour toi et pour les autres joueurs."
+                  confirmLabel="Fermer"
                 />
               )}
             </div>
@@ -141,56 +151,83 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
               {summary.unique.length > 0 && (
                 <>
                   <h3 className="recap-title">Mots uniques</h3>
-                  <ul className="words recap-words">
-                    {summary.unique.map((w) => (
-                      <UniqueWordRow key={w.key} word={w} youId={room.you.id} canLike={!solo && !room.observing} />
-                    ))}
-                  </ul>
+                  <div className="recap-table-wrap">
+                    <table className="recap-table">
+                      <tbody>
+                        {summary.unique.map((w) => (
+                          <UniqueWordRow
+                            key={w.key}
+                            word={w}
+                            youId={room.you.id}
+                            canLike={!solo && !room.observing}
+                          />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </>
               )}
 
               {summary.shared.length > 0 && (
                 <>
                   <h3 className="recap-title">Mots en commun (0 pt)</h3>
-                  <ul className="words recap-words">
-                    {summary.shared.map((w) => (
-                      <SharedWordRow key={w.key} word={w} youId={room.you.id} canLike={!solo && !room.observing} />
-                    ))}
-                  </ul>
+                  <div className="recap-table-wrap">
+                    <table className="recap-table">
+                      <tbody>
+                        {summary.shared.map((w) => (
+                          <SharedWordRow
+                            key={w.key}
+                            word={w}
+                            youId={room.you.id}
+                            canLike={!solo && !room.observing}
+                          />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </>
               )}
 
               {rejected.length > 0 && (
                 <>
                   <h3 className="recap-title">Pas dans le dico (à vérifier)</h3>
-                  <p className="muted recap-help">
-                    Mots assez longs, chemin valide, mais absents du dictionnaire. Ouvre Larousse,
-                    le Robert ou le Wiktionnaire pour vérifier, puis ajoute-le s’il est correct :
-                    il compte pour cette manche et sera accepté ensuite.
-                  </p>
-                  <ul className="words recap-words">
-                    {rejected.map((w) => (
-                      <li key={w.key} className="rejected">
-                        <span>
-                          <WordLink word={w.display} />
-                          <small className="word-owner">
-                            {" "}
-                            {w.names.map((n) => n.name).join(", ")}
-                          </small>
-                        </span>
-                        {!w.added && !room.observing && (
-                          <button
-                            type="button"
-                            className="chip on add-word"
-                            onClick={() => socket.emit("dict:add", { key: w.key })}
-                          >
-                            Ajouter
-                          </button>
-                        )}
-                        {w.added && <em className="added">ajouté</em>}
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="recap-table-wrap">
+                    <table className="recap-table">
+                      <tbody>
+                        {rejected.map((w) => (
+                          <tr key={w.key}>
+                            <td>
+                              <WordLink word={w.display} />
+                            </td>
+                            <td className="recap-who">
+                              {w.names.map((player, index) => (
+                                <span key={`${player.name}-${index}`} style={{ color: player.color }}>
+                                  {index > 0 ? ", " : ""}
+                                  {player.name}
+                                </span>
+                              ))}
+                            </td>
+                            <td className="recap-action">
+                              {w.added ? (
+                                <em className="added">ajouté</em>
+                              ) : admin ? (
+                                <button
+                                  type="button"
+                                  className="chip on add-word"
+                                  onClick={() => socket.emit("dict:add", { key: w.key })}
+                                >
+                                  Ajouter
+                                </button>
+                              ) : null}
+                            </td>
+                            <td className="recap-pts">
+                              {wordPoints(w.letters, w.names.length > 1)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </>
               )}
             </section>
@@ -216,15 +253,14 @@ function UniqueWordRow({
   const mine = word.playerId === youId;
 
   return (
-    <li>
-      <span>
+    <tr>
+      <td>
         <WordLink word={word.display} />
-        <small className="word-owner" style={{ color: word.color }}>
-          {" "}
-          {word.name}
-        </small>
-      </span>
-      <span className="word-tail">
+      </td>
+      <td className="recap-who" style={{ color: word.color }}>
+        {word.name}
+      </td>
+      <td className="recap-action">
         <WordLikeControl
           wordKey={word.key}
           display={word.display}
@@ -233,9 +269,9 @@ function UniqueWordRow({
           canLike={canLike && !mine}
           showCount={!canLike || mine}
         />
-        <em>{word.points}</em>
-      </span>
-    </li>
+      </td>
+      <td className="recap-pts">{word.points}</td>
+    </tr>
   );
 }
 
@@ -252,15 +288,19 @@ function SharedWordRow({
   const foundIt = (word.playerIds ?? []).includes(youId);
 
   return (
-    <li className="shared">
-      <span>
+    <tr>
+      <td>
         <WordLink word={word.display} />
-        <small className="word-owner">
-          {" "}
-          {word.names.map((n) => n.name).join(", ")}
-        </small>
-      </span>
-      <span className="word-tail">
+      </td>
+      <td className="recap-who">
+        {word.names.map((player, index) => (
+          <span key={`${player.name}-${index}`} style={{ color: player.color }}>
+            {index > 0 ? ", " : ""}
+            {player.name}
+          </span>
+        ))}
+      </td>
+      <td className="recap-action">
         <WordLikeControl
           wordKey={word.key}
           display={word.display}
@@ -269,9 +309,9 @@ function SharedWordRow({
           canLike={canLike && !foundIt}
           showCount={foundIt}
         />
-        <em>0</em>
-      </span>
-    </li>
+      </td>
+      <td className="recap-pts">0</td>
+    </tr>
   );
 }
 
@@ -385,9 +425,7 @@ function PossibleWords({ summary }: { summary: RoundSummary }) {
         {missed.length > 0
           ? ` · ${missed.length} oublié${missed.length > 1 ? "s" : ""}`
           : ""}
-        . En gras : mot trouvé
-        {foundCount > 0 ? " (vert = un joueur, rouge = plusieurs)" : ""}
-        . Les points indiqués auraient été gagnés si le mot était unique.
+        {foundCount > 0 ? ". Vert : un joueur. Rouge : plusieurs." : ""}
       </p>
       {words.length === 0 ? (
         <p className="muted">Aucun mot possible avec ces règles.</p>
@@ -396,43 +434,38 @@ function PossibleWords({ summary }: { summary: RoundSummary }) {
           {missed.length === 0 && possibleCount > 0 && (
             <p>Tous les mots de la grille ont été trouvés. Bravo !</p>
           )}
-          <div className="missed-scroll">
-            {lengths.map((n) => (
-              <div key={n}>
-                <h3 className="recap-title">
-                  {n} lettre{n > 1 ? "s" : ""} · {groups.get(n)!.length}
-                </h3>
-                <ul className="words recap-words possible-words">
-                  {groups.get(n)!.map((w) => {
-                    const foundClass =
-                      w.owners.length > 1
-                        ? "found-shared"
-                        : w.owners.length === 1
-                          ? "found-unique"
-                          : "";
-                    return (
-                      <li key={w.key} className={foundClass}>
-                        <span>
-                          <WordLink word={w.display} />
-                          {w.owners.length > 0 && (
-                            <small className="word-owner">
-                              {" "}
-                              {w.owners.map((p, i) => (
-                                <span key={`${p.name}-${i}`} style={{ color: p.color }}>
-                                  {i > 0 ? ", " : ""}
-                                  {p.name}
-                                </span>
-                              ))}
-                            </small>
-                          )}
-                        </span>
-                        <em>{w.points}</em>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ))}
+          <div className="possible-tables">
+            {lengths.map((n) => {
+              const list = groups.get(n)!;
+              const pts = wordPoints(n, false);
+              return (
+                <div key={n} className="possible-table">
+                  <table>
+                    <caption>
+                      {n} lettre{n > 1 ? "s" : ""} ({pts} point{pts > 1 ? "s" : ""}) · {list.length}
+                    </caption>
+                    <tbody>
+                      <tr>
+                        {list.map((w) => {
+                          const foundClass =
+                            w.owners.length > 1
+                              ? "found-shared"
+                              : w.owners.length === 1
+                                ? "found-unique"
+                                : "";
+                          const owners = w.owners.map((p) => p.name).join(", ");
+                          return (
+                            <td key={w.key} className={foundClass} title={owners || undefined}>
+                              <WordLink word={w.display} />
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })}
           </div>
         </>
       )}

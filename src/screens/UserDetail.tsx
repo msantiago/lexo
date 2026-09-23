@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { GameHistoryDetail, GameHistoryItem, PublicProfile } from "@shared/account";
 import Avatar from "../components/Avatar";
+import { WatchButton } from "../components/RoundActions";
 import { displayNameFromUser } from "../lib/auth-client";
 import { activityLabel, formatJoined } from "../lib/presence";
 import { BadgeBoard, GameDetail, GameList, WordStatsBoard } from "./Profile";
@@ -77,38 +78,33 @@ export default function UserDetail({ userId, onBack, onWatch }: Props) {
   return (
     <div className="profile">
       <section className="panel profile-hero" aria-label={name || "Joueur"}>
+        <button className="btn btn-gold back-chip" type="button" onClick={onBack}>
+          <BackIcon />
+          Joueurs
+        </button>
         <div className="profile-head">
-          <button className="btn btn-ghost" type="button" onClick={onBack}>
-            Joueurs
-          </button>
           <div className="profile-identity">
-            <Avatar className="account-avatar" name={name} image={profile?.image} />
+            <Avatar
+              className="account-avatar"
+              online={profile?.online}
+              name={name}
+              image={profile?.image}
+            />
             <div className="meta">
               <h1>{profile ? name : "Joueur"}</h1>
               {joined && <span>Inscrit le {joined}</span>}
             </div>
           </div>
-          {profile && (
+          {profile?.play && (
             <div className="user-presence">
-              <span className={`user-status ${profile.online ? "online" : "offline"}`}>
-                {profile.online ? "En ligne" : "Hors ligne"}
-              </span>
               {activity && (
                 <span
-                  className={`user-play ${profile.play?.observing ? "observing" : profile.play?.mode ?? "idle"}`}
+                  className={`user-play ${profile.play.observing ? "observing" : profile.play.mode}`}
                 >
                   {activity}
                 </span>
               )}
-              {profile.play && onWatch && (
-                <button
-                  className="btn btn-gold btn-compact"
-                  type="button"
-                  onClick={() => onWatch(userId)}
-                >
-                  Regarder
-                </button>
-              )}
+              {onWatch && <WatchButton onClick={() => onWatch(userId)} />}
             </div>
           )}
         </div>
@@ -206,6 +202,21 @@ export default function UserDetail({ userId, onBack, onWatch }: Props) {
         </>
       )}
     </div>
+  );
+}
+
+function BackIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M15 5 8 12l7 7"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
