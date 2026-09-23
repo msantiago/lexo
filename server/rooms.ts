@@ -460,13 +460,47 @@ function toLobbyRoom(room: Room): LobbyRoom {
 }
 
 export function listPublicRooms(): LobbyRoom[] {
-  return [...rooms.values()]
-    .filter((room) => !room.solo && hasConnectedPlayers(room))
-    .map(toLobbyRoom);
+  return [...rooms.values()].filter(hasConnectedPlayers).map(toLobbyRoom);
 }
 
 export function listAdminRooms(): LobbyRoom[] {
   return [...rooms.values()].filter(hasConnectedPlayers).map(toLobbyRoom);
+}
+
+export type UserSeat = {
+  userId: string;
+  solo: boolean;
+  code: string;
+  phase: Phase;
+  observing: boolean;
+};
+
+/** One seat per registered user currently in a room, player preferred over observer. */
+export function listUserSeats(): UserSeat[] {
+  const seats = new Map<string, UserSeat>();
+  for (const room of rooms.values()) {
+    for (const player of room.players) {
+      if (!player.userId) continue;
+      seats.set(player.userId, {
+        userId: player.userId,
+        solo: room.solo,
+        code: room.code,
+        phase: room.phase,
+        observing: false,
+      });
+    }
+    for (const observer of room.observers) {
+      if (!observer.userId || seats.has(observer.userId)) continue;
+      seats.set(observer.userId, {
+        userId: observer.userId,
+        solo: room.solo,
+        code: room.code,
+        phase: room.phase,
+        observing: true,
+      });
+    }
+  }
+  return [...seats.values()];
 }
 
 function notifyLobby() {
@@ -713,6 +747,7 @@ function abandonCurrentSeat(socketId: string) {
 }
 
 export function createRoom(socketId: string, name: string, solo = false, userId: string | null = null) {
+  if (!userId) throw new Error("Connecte-toi pour jouer");
   abandonCurrentSeat(socketId);
   const replacedSocketIds = userId ? evacuateUser(userId) : [];
   const code = makeCode();
@@ -750,6 +785,7 @@ export function createRoom(socketId: string, name: string, solo = false, userId:
 }
 
 export function joinRoom(socketId: string, code: string, name: string, userId: string | null = null) {
+  if (!userId) return { error: "Connecte-toi pour jouer" as const };
   const room = rooms.get(code.trim().toUpperCase());
   if (!room) return { error: "Salon introuvable" as const };
   if (getRoomBySocket(socketId)?.code === room.code) {
@@ -757,34 +793,18 @@ export function joinRoom(socketId: string, code: string, name: string, userId: s
     if (you) return { room, playerId: you.id, replacedSocketIds: [] as string[] };
   }
   abandonCurrentSeat(socketId);
-  if (userId) {
-    const existing = room.players.find((p) => p.userId === userId);
-    if (existing) {
-      const extra = evacuateUser(userId, room.code);
-      const replaced = claimSeat(room, existing, socketId);
-      emitState(room);
-      return {
-        room,
-        playerId: existing.id,
-        replacedSocketIds: [...extra, ...(replaced ? [replaced] : [])],
-      };
-    }
-    const replacedSocketIds = evacuateUser(userId);
-    const playerName = sanitizeName(name);
-    const vacated = claimDisconnectedName(room, socketId, playerName, userId);
-    if (vacated) return vacated;
-    if (room.players.length >= MAX_PLAYERS) {
-      return { error: "Ce salon est complet (10 joueurs)" as const };
-    }
-    if (room.players.some((p) => foldPlayerName(p.name) === foldPlayerName(playerName))) {
-      return { error: "Ce prénom est déjà pris dans ce salon" as const };
-    }
-    const player = makePlayer(socketId, playerName, nextColor(room), userId);
-    room.players.push(player);
-    socketRoom.set(socketId, room.code);
+  const existing = room.players.find((p) => p.userId === userId);
+  if (existing) {
+    const extra = evacuateUser(userId, room.code);
+    const replaced = claimSeat(room, existing, socketId);
     emitState(room);
-    return { room, playerId: player.id, replacedSocketIds };
+    return {
+      room,
+      playerId: existing.id,
+      replacedSocketIds: [...extra, ...(replaced ? [replaced] : [])],
+    };
   }
+  const replacedSocketIds = evacuateUser(userId);
   const playerName = sanitizeName(name);
   const vacated = claimDisconnectedName(room, socketId, playerName, userId);
   if (vacated) return vacated;
@@ -794,20 +814,22 @@ export function joinRoom(socketId: string, code: string, name: string, userId: s
   if (room.players.some((p) => foldPlayerName(p.name) === foldPlayerName(playerName))) {
     return { error: "Ce prénom est déjà pris dans ce salon" as const };
   }
+  if (room.solo) return { error: "Cette partie est en solo" as const };
   const player = makePlayer(socketId, playerName, nextColor(room), userId);
   room.players.push(player);
   socketRoom.set(socketId, room.code);
   emitState(room);
-  return { room, playerId: player.id, replacedSocketIds: [] as string[] };
+  return { room, playerId: player.id, replacedSocketIds };
 }
 
 export function rejoinRoom(socketId: string, code: string, playerId: string, userId: string | null = null) {
+  if (!userId) return { error: "Connecte-toi pour jouer" as const };
   const room = rooms.get(code.trim().toUpperCase());
   if (!room) return { error: "Salon introuvable" as const };
   const observer = room.observers.find((o) => o.id === playerId);
   if (observer) {
+    if (observer.userId !== userId) return { error: "Joueur introuvable" as const };
     const replacedSocketId = claimObserver(room, observer, socketId);
-    if (userId && !observer.userId) observer.userId = userId;
     return {
       room,
       playerId: observer.id,
@@ -816,9 +838,8 @@ export function rejoinRoom(socketId: string, code: string, playerId: string, use
     };
   }
   const player = room.players.find((p) => p.id === playerId);
-  if (!player) return { error: "Joueur introuvable" as const };
+  if (!player || player.userId !== userId) return { error: "Joueur introuvable" as const };
   const replacedSocketId = claimSeat(room, player, socketId);
-  if (userId && !player.userId) player.userId = userId;
   emitState(room);
   return {
     room,
@@ -1040,6 +1061,7 @@ export function observeRoom(
   name: string,
   userId: string | null = null,
 ) {
+  if (!userId) return { error: "Connecte-toi pour jouer" as const };
   const room = rooms.get(code.trim().toUpperCase());
   if (!room) return { error: "Salon introuvable" as const };
 

@@ -1,5 +1,5 @@
 import type { BadgeDef, BadgeView } from "./badges.ts";
-import type { Cell, GameSettings, RoundSummary, WordRecap } from "./types.ts";
+import type { Cell, GameSettings, Phase, RoundSummary, WordRecap } from "./types.ts";
 
 export type AuthProviderId =
   | "google"
@@ -103,4 +103,38 @@ export type ProfilePayload = {
   games: GameHistoryItem[];
   recentUnlocks: BadgeDef[];
   hasCustomAvatar?: boolean;
+};
+
+export type DirectoryPlay = {
+  mode: "solo" | "room";
+  phase: Phase;
+  observing: boolean;
+};
+
+export type DirectoryStats = {
+  gamesPlayed: number;
+  soloGames: number;
+  multiGames: number;
+  wordsFound: number;
+  totalPoints: number;
+  wins: number;
+};
+
+export type DirectoryUser = {
+  id: string;
+  name: string;
+  image: string | null;
+  createdAt: number;
+  online: boolean;
+  play: DirectoryPlay | null;
+  stats: DirectoryStats;
+};
+
+export type PublicProfile = ProfilePayload & {
+  id: string;
+  name: string;
+  image: string | null;
+  createdAt: number;
+  online: boolean;
+  play: DirectoryPlay | null;
 };

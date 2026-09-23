@@ -135,6 +135,57 @@ const extraOrigins = (process.env.AUTH_TRUSTED_ORIGINS ?? "")
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+const authDb = new Database(path.join(dataDir, "auth.sqlite"));
+
+export type AuthUserRecord = {
+  id: string;
+  name: string;
+  email: string;
+  image: string | null;
+  createdAt: number;
+};
+
+export function findAuthUser(id: string): AuthUserRecord | null {
+  const row = authDb
+    .prepare(`SELECT id, name, email, image, createdAt FROM "user" WHERE id = ?`)
+    .get(id) as
+    | {
+        id: string;
+        name: string;
+        email: string;
+        image: string | null;
+        createdAt: string | number;
+      }
+    | undefined;
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    image: row.image,
+    createdAt: typeof row.createdAt === "number" ? row.createdAt : Date.parse(String(row.createdAt)),
+  };
+}
+
+export function listAuthUsers(): AuthUserRecord[] {
+  const rows = authDb
+    .prepare(`SELECT id, name, email, image, createdAt FROM "user"`)
+    .all() as {
+    id: string;
+    name: string;
+    email: string;
+    image: string | null;
+    createdAt: string | number;
+  }[];
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    image: row.image,
+    createdAt: typeof row.createdAt === "number" ? row.createdAt : Date.parse(String(row.createdAt)),
+  }));
+}
+
 const secret =
   process.env.BETTER_AUTH_SECRET ||
   (process.env.NODE_ENV === "production" ? "" : "lexo-dev-secret-change-me-32chars!");
@@ -148,7 +199,7 @@ if (!secret || secret.length < 32) {
 export const auth = betterAuth({
   secret,
   baseURL: process.env.BETTER_AUTH_URL || "http://localhost:5173",
-  database: new Database(path.join(dataDir, "auth.sqlite")),
+  database: authDb,
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,

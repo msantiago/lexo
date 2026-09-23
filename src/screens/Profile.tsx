@@ -414,12 +414,19 @@ function Stat({
   );
 }
 
-function WordStatsBoard({ stats }: { stats: WordStatsPayload }) {
+export function WordStatsBoard({
+  stats,
+  voice = "self",
+}: {
+  stats: WordStatsPayload;
+  voice?: "self" | "public";
+}) {
   if (stats.total === 0) {
     return (
       <p className="hint">
-        Tes stats de mots apparaîtront ici. Joue connecté pour suivre tes fréquences, longueurs et
-        lettres favorites.
+        {voice === "public"
+          ? "Pas encore de stats de mots."
+          : "Tes stats de mots apparaîtront ici. Joue connecté pour suivre tes fréquences, longueurs et lettres favorites."}
       </p>
     );
   }
@@ -445,7 +452,11 @@ function WordStatsBoard({ stats }: { stats: WordStatsPayload }) {
       <div className="word-stats-grid">
         <section className="panel">
           <h2>Fréquence</h2>
-          <p className="muted word-stats-help">Les mots que tu as validés sur plusieurs grilles.</p>
+          <p className="muted word-stats-help">
+            {voice === "public"
+              ? "Mots validés sur plusieurs grilles."
+              : "Les mots que tu as validés sur plusieurs grilles."}
+          </p>
           {stats.mostFrequent.length === 0 ? (
             <p className="hint">
               Aucun mot n’est encore sorti deux fois. Chaque manche a un nouveau tirage, donc les
@@ -458,7 +469,11 @@ function WordStatsBoard({ stats }: { stats: WordStatsPayload }) {
 
         <section className="panel">
           <h2>Longueur</h2>
-          <p className="muted word-stats-help">Répartition de tes mots selon le nombre de lettres.</p>
+          <p className="muted word-stats-help">
+            {voice === "public"
+              ? "Répartition des mots selon le nombre de lettres."
+              : "Répartition de tes mots selon le nombre de lettres."}
+          </p>
           <BarList
             items={stats.byLength
               .filter((bucket) => bucket.count > 0 || (bucket.length >= 3 && bucket.length <= 8))
@@ -476,7 +491,11 @@ function WordStatsBoard({ stats }: { stats: WordStatsPayload }) {
 
         <section className="panel">
           <h2>Première lettre</h2>
-          <p className="muted word-stats-help">Par quelle lettre tes mots commencent le plus.</p>
+          <p className="muted word-stats-help">
+            {voice === "public"
+              ? "Lettre initiale des mots validés."
+              : "Par quelle lettre tes mots commencent le plus."}
+          </p>
           {stats.byInitial.length === 0 ? (
             <p className="hint">Pas encore de données.</p>
           ) : (
@@ -493,14 +512,20 @@ function WordStatsBoard({ stats }: { stats: WordStatsPayload }) {
 
         <section className="panel">
           <h2>Plus longs</h2>
-          <p className="muted word-stats-help">Tes records de longueur, toutes parties confondues.</p>
+          <p className="muted word-stats-help">
+            {voice === "public"
+              ? "Records de longueur, toutes parties confondues."
+              : "Tes records de longueur, toutes parties confondues."}
+          </p>
           <WordRankList words={stats.longest} mode="length" />
         </section>
 
         <section className="panel word-stats-span">
           <h2>Les plus rentables</h2>
           <p className="muted word-stats-help">
-            Mots qui t’ont rapporté le plus de points au total (occurrences cumulées).
+            {voice === "public"
+              ? "Mots qui ont rapporté le plus de points au total (occurrences cumulées)."
+              : "Mots qui t’ont rapporté le plus de points au total (occurrences cumulées)."}
           </p>
           <WordRankList words={stats.richest} mode="points" />
         </section>
@@ -575,7 +600,7 @@ function BarList({
   );
 }
 
-function BadgeBoard({ badges }: { badges: BadgeView[] }) {
+export function BadgeBoard({ badges }: { badges: BadgeView[] }) {
   const categories: BadgeCategory[] = ["welcome", "games", "words", "score", "length", "special"];
   return (
     <div className="badge-board">
@@ -607,17 +632,21 @@ function BadgeBoard({ badges }: { badges: BadgeView[] }) {
   );
 }
 
-function GameList({
+export function GameList({
   games,
   onOpen,
+  voice = "self",
 }: {
   games: GameHistoryItem[];
   onOpen: (game: GameHistoryItem) => void;
+  voice?: "self" | "public";
 }) {
   if (games.length === 0) {
     return (
       <p className="hint">
-        Tes parties enregistrées apparaîtront ici. Joue connecté pour les retrouver plus tard.
+        {voice === "public"
+          ? "Aucune partie enregistrée."
+          : "Tes parties enregistrées apparaîtront ici. Joue connecté pour les retrouver plus tard."}
       </p>
     );
   }
@@ -646,7 +675,7 @@ function GameList({
                   </span>
                   <strong>
                     {p.name}
-                    {p.you ? " (toi)" : ""}
+                    {p.you && voice === "self" ? " (toi)" : ""}
                   </strong>
                   <span className="lobby-room-score">{p.score} pts</span>
                 </li>
@@ -659,7 +688,15 @@ function GameList({
   );
 }
 
-function GameDetail({ game, onBack }: { game: GameHistoryDetail; onBack: () => void }) {
+export function GameDetail({
+  game,
+  onBack,
+  voice = "self",
+}: {
+  game: GameHistoryDetail;
+  onBack: () => void;
+  voice?: "self" | "public";
+}) {
   return (
     <div className="profile profile-detail">
       <div className="profile-head">
@@ -686,7 +723,7 @@ function GameDetail({ game, onBack }: { game: GameHistoryDetail; onBack: () => v
                     </span>
                     <strong>
                       {p.name}
-                      {p.you ? " (toi)" : ""}
+                      {p.you && voice === "self" ? " (toi)" : ""}
                     </strong>
                     <span className="lobby-room-score">{p.score} pts</span>
                   </li>

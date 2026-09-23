@@ -80,6 +80,10 @@ export default function App() {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
     };
     const onError = ({ message }: { message: string }) => {
+      if (message === "Connecte-toi pour jouer") {
+        goHome(message);
+        return;
+      }
       if (message === "Salon introuvable" || message === "Joueur introuvable") {
         const attempted = pendingRejoin.current;
         pendingRejoin.current = null;
@@ -181,6 +185,7 @@ export default function App() {
           onCreate={() => socket.emit("room:create", { name, solo: false })}
           onJoin={(code) => socket.emit("room:join", { code, name })}
           onObserve={(code) => socket.emit("room:observe", { code, name })}
+          onWatch={(userId) => socket.emit("room:watch", { userId, name })}
           onCloseRoom={closeRoom}
         />
       )}

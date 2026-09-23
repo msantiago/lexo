@@ -8,7 +8,7 @@ En production : `npm run build` puis `npm start`. Le serveur sert le front et le
 
 ## Authentification
 
-Les comptes sont optionnels : on peut encore jouer avec un prénom seul.
+Un compte est obligatoire pour créer un salon, lancer une partie solo ou rejoindre une partie.
 
 - E-mail + mot de passe (création de compte Lexo et connexion, avec « se souvenir de moi »)
 - Google, Apple, Facebook, Microsoft, GitHub et Discord si les identifiants OAuth sont configurés

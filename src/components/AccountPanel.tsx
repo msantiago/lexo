@@ -137,6 +137,7 @@ export default function AccountPanel({ admin, onDisplayName, onOpenProfile }: Pr
 
   return (
     <section className="panel account-panel">
+      <p className="hint">Un compte est nécessaire pour créer un salon ou lancer une partie.</p>
       <div className="account-tabs" role="tablist">
         <button
           type="button"

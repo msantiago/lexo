@@ -247,6 +247,10 @@ button {
   width: min(440px, 100%);
 }
 
+.account-panel > .hint {
+  margin: 0 0 14px;
+}
+
 .account-tabs {
   display: flex;
   gap: 8px;
@@ -997,6 +1001,10 @@ button {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   font-size: 13px;
+}
+
+.home-players {
+  margin-top: 16px;
 }
 
 .panel {
@@ -2577,4 +2585,196 @@ button {
 .word-like-count {
   background: rgba(232, 184, 74, 0.16);
   color: var(--gold);
+}
+
+.users-page {
+  width: min(1100px, 100%);
+  margin-inline: auto;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  padding-bottom: 88px;
+}
+
+.users-page .panel {
+  width: 100%;
+}
+
+.users-hero {
+  display: grid;
+  gap: 16px;
+}
+
+.users-tools {
+  display: grid;
+  gap: 12px;
+}
+
+.users-tools .account-tabs {
+  margin-bottom: 0;
+  flex-wrap: wrap;
+}
+
+.users-search {
+  margin-bottom: 0;
+}
+
+.users-table-wrap {
+  overflow-x: auto;
+  border-radius: 24px;
+  border: 1px solid var(--line);
+  background: rgba(8, 36, 33, 0.72);
+  box-shadow: var(--shadow);
+}
+
+.users-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+}
+
+.users-table th,
+.users-table td {
+  padding: 12px 16px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.users-table thead th {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold-soft);
+}
+
+.users-table tbody th,
+.users-table tbody td {
+  border-top: 1px solid var(--line);
+}
+
+.users-table .num {
+  text-align: right;
+  font-family: var(--font-dice);
+  font-size: 20px;
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.users-table thead .num {
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--gold-soft);
+}
+
+.users-table tr.online td,
+.users-table tr.online th {
+  background: rgba(111, 219, 154, 0.08);
+}
+
+.users-table tr.offline {
+  opacity: 0.78;
+}
+
+.user-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--cream);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.user-name span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-name:hover,
+.user-name:focus-visible {
+  color: var(--gold);
+}
+
+.user-name .account-avatar {
+  width: 36px;
+  height: 36px;
+  font-size: 15px;
+  flex: none;
+}
+
+.presence-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--mint);
+  box-shadow: 0 0 0 4px rgba(111, 219, 154, 0.22);
+  flex: none;
+}
+
+.user-presence {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.profile-head .user-presence {
+  margin-left: auto;
+}
+
+.user-status,
+.user-play {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.user-status.online {
+  color: var(--ink);
+  background: var(--mint);
+}
+
+.user-status.offline {
+  color: var(--gold-soft);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.user-play.solo {
+  color: var(--ink);
+  background: var(--ivory);
+}
+
+.user-play.room {
+  color: var(--cream);
+  background: rgba(91, 168, 255, 0.35);
+}
+
+.user-play.observing {
+  color: var(--ink);
+  background: var(--gold);
+}
+
+.user-play.idle {
+  color: var(--gold-soft);
+  background: rgba(255, 255, 255, 0.06);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+@media (max-width: 720px) {
+  .profile-head .user-presence {
+    width: 100%;
+    margin-left: 0;
+  }
 }

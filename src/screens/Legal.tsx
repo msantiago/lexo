@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import LexoLogo from "../components/LexoLogo";
 import { goHome, PRIVACY_PATH, TERMS_PATH } from "../lib/nav";
 
-const UPDATED = "13 septembre 2026";
+const UPDATED = "23 septembre 2026";
 
 function LegalPage({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -44,7 +44,7 @@ export function Privacy() {
       </p>
 
       <h2>Données collectées</h2>
-      <p>Lexo ne te demande un compte que si tu le souhaites. Tu peux jouer en invité avec un prénom.</p>
+      <p>Un compte est nécessaire pour jouer. Tu te connectes avec un e-mail ou via un prestataire proposé (Google, Apple, etc.).</p>
       <ul>
         <li>
           <strong>Compte Lexo</strong> : adresse e-mail, mot de passe (stocké sous forme hachée,
@@ -56,16 +56,12 @@ export function Privacy() {
           reçoit pas ton mot de passe chez ces services.
         </li>
         <li>
-          <strong>Profil et parties</strong> (si tu es connecté) : parties jouées, grilles, mots
-          trouvés, scores, badges, et les prénoms des autres joueurs de ces parties.
+          <strong>Profil et parties</strong> : parties jouées, grilles, mots trouvés, scores,
+          badges, et les pseudos des autres joueurs de ces parties.
         </li>
         <li>
-          <strong>Session</strong> : un cookie de session pour rester connecté, et éventuellement
-          le prénom choisi sur cet appareil.
-        </li>
-        <li>
-          <strong>Invité</strong> : le prénom affiché dans le salon reste en mémoire le temps de la
-          partie. Il n’est pas enregistré comme un compte.
+          <strong>Session</strong> : un cookie de session pour rester connecté, et le pseudo du
+          compte mémorisé sur cet appareil.
         </li>
       </ul>
       <p>Lexo n’utilise pas de publicité, ni d’outil d’analyse d’audience tiers.</p>
@@ -79,7 +75,7 @@ export function Privacy() {
       </ul>
       <p>
         La base légale est ton consentement (création de compte ou bouton « Continuer avec Google »)
-        et l’intérêt légitime de faire tourner le jeu si tu joues en invité.
+        et l’exécution du service de jeu une fois le compte créé.
       </p>
 
       <h2>Partage</h2>
@@ -96,7 +92,7 @@ export function Privacy() {
       <h2>Durée de conservation</h2>
       <p>
         Les données de compte, d’historique et de badges sont conservées tant que le compte existe.
-        Les salons d’invités disparaissent quand la partie se termine ou que le serveur les ferme. Un
+        Les salons en cours disparaissent quand la partie se termine ou que le serveur les ferme. Un
         cookie de session expire au plus tard après 30 jours si tu as coché « se souvenir de moi ».
       </p>
 
@@ -137,9 +133,9 @@ export function Terms() {
 
       <h2>Le service</h2>
       <p>
-        Lexo est un jeu de lettres en temps réel, proposé gratuitement. Tu peux jouer en invité avec
-        un prénom, ou créer un compte (e-mail ou connexion Google et autres prestataires) pour
-        conserver tes parties, tes stats et tes badges.
+        Lexo est un jeu de lettres en temps réel, proposé gratuitement. Pour jouer, crée un compte
+        (e-mail ou connexion Google et autres prestataires) : tes parties, tes stats et tes badges
+        sont alors conservés.
       </p>
       <p>
         Le jeu, les salons et les classements fonctionnent « en l’état ». L’éditeur peut modifier,
@@ -149,7 +145,7 @@ export function Terms() {
 
       <h2>Compte</h2>
       <ul>
-        <li>Le compte est facultatif.</li>
+        <li>Un compte est requis pour créer un salon, lancer une partie solo ou rejoindre une partie.</li>
         <li>Tu es responsable de la confidentialité de tes identifiants.</li>
         <li>Le pseudo ne doit pas usurper l’identité d’autrui ni être injurieux.</li>
         <li>
@@ -170,7 +166,7 @@ export function Terms() {
       <p>
         Le nom Lexo, l’interface et le code du jeu appartiennent à leur auteur. Le dictionnaire est
         utilisé sous la licence du lexique Grammalecte / Dicollecte. Tes mots trouvés et ton pseudo
-        sont utilisés uniquement pour faire fonctionner le jeu et, si tu as un compte, ton historique.
+        sont utilisés uniquement pour faire fonctionner le jeu et ton historique.
       </p>
 
       <h2>Responsabilité</h2>

@@ -9,7 +9,8 @@ import { Server } from "socket.io";
 import { toNodeHandler } from "better-auth/node";
 import type { GameSettings } from "../shared/types.ts";
 import { isAdminUser } from "./admin.ts";
-import { auth, authProviders, migrateAuth, sessionFromHeaders } from "./auth.ts";
+import { auth, authProviders, findAuthUser, migrateAuth, sessionFromHeaders } from "./auth.ts";
+import { buildDirectory, playFor } from "./directory.ts";
 import { dictionary } from "./dictionary.ts";
 import {
   closeRoom,
@@ -19,8 +20,8 @@ import {
   sendChat,
   toggleWordLike,
   leaveSocket,
-  listAdminRooms,
   listPublicRooms,
+  listUserSeats,
   observeRoom,
   rejoinByUserId,
   rejoinRoom,
@@ -35,7 +36,7 @@ import {
   adoptRejectedWord,
 } from "./rooms.ts";
 import { hasUserAvatar, parseAvatarDataUrl, readUserAvatar, saveUserAvatar } from "./avatars.ts";
-import { getGame, getProfile, listGames, migrateStore } from "./store.ts";
+import { getGame, getProfile, listGames, migrateStore, readProfile } from "./store.ts";
 
 const PORT = Number(process.env.PORT) || 3001;
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -54,6 +55,48 @@ app.use(express.json({ limit: "600kb" }));
 
 app.get("/api/auth-config", (_req, res) => {
   res.json(authProviders);
+});
+
+app.get("/api/users", (_req, res) => {
+  res.json(buildDirectory(onlineUserIds()));
+});
+
+app.get("/api/users/:id", (req, res) => {
+  const id = userIdParam(req.params.id);
+  if (!id) {
+    res.status(404).json({ error: "Joueur introuvable" });
+    return;
+  }
+  const user = findAuthUser(id);
+  if (!user) {
+    res.status(404).json({ error: "Joueur introuvable" });
+    return;
+  }
+  const online = onlineUserIds();
+  res.json({
+    ...readProfile(user.id),
+    id: user.id,
+    name: user.name,
+    image: user.image,
+    createdAt: user.createdAt,
+    online: online.has(user.id),
+    play: playFor(user.id),
+  });
+});
+
+app.get("/api/users/:id/games/:gameId", (req, res) => {
+  const id = userIdParam(req.params.id);
+  const gameId = userIdParam(req.params.gameId);
+  if (!id || !gameId || !findAuthUser(id)) {
+    res.status(404).json({ error: "Partie introuvable" });
+    return;
+  }
+  const game = getGame(id, gameId);
+  if (!game) {
+    res.status(404).json({ error: "Partie introuvable" });
+    return;
+  }
+  res.json(game);
 });
 
 app.get("/api/me/profile", async (req, res) => {
@@ -169,9 +212,9 @@ setBroadcast((room, event, payload) => {
   }
 });
 
-setLobbyBroadcast((publicRooms, adminRooms) => {
+setLobbyBroadcast((publicRooms) => {
   for (const sock of io.sockets.sockets.values()) {
-    sock.emit("lobby:rooms", sock.data.isAdmin ? adminRooms : publicRooms);
+    sock.emit("lobby:rooms", publicRooms);
   }
 });
 
@@ -188,7 +231,7 @@ io.on("connection", async (socket) => {
   socket.data.userEmail = session?.user.email ?? null;
   socket.data.isAdmin = isAdminUser(session?.user);
   socket.emit("session:role", { admin: Boolean(socket.data.isAdmin) });
-  socket.emit("lobby:rooms", lobbyRoomsFor(socket));
+  socket.emit("lobby:rooms", lobbyRoomsFor());
 
   if (userId) {
     const rejoined = rejoinByUserId(socket.id, userId);
@@ -199,16 +242,18 @@ io.on("connection", async (socket) => {
   }
 
   socket.on("lobby:list", () => {
-    socket.emit("lobby:rooms", lobbyRoomsFor(socket));
+    socket.emit("lobby:rooms", lobbyRoomsFor());
   });
 
   socket.on("room:create", ({ name, solo }: { name?: string; solo?: boolean }) => {
+    const userId = requireUser(socket);
+    if (!userId) return;
     try {
       const { room, playerId, replacedSocketIds } = createRoom(
         socket.id,
         name ?? "",
         Boolean(solo),
-        userIdOf(socket),
+        userId,
       );
       notifyReplaced(replacedSocketIds);
       emitMembership(socket, room, playerId);
@@ -219,7 +264,9 @@ io.on("connection", async (socket) => {
   });
 
   socket.on("room:join", ({ code, name }: { code?: string; name?: string }) => {
-    const result = joinRoom(socket.id, code ?? "", name ?? "", userIdOf(socket));
+    const userId = requireUser(socket);
+    if (!userId) return;
+    const result = joinRoom(socket.id, code ?? "", name ?? "", userId);
     if ("error" in result) {
       socket.emit("notice", { message: result.error });
       return;
@@ -229,11 +276,32 @@ io.on("connection", async (socket) => {
   });
 
   socket.on("room:observe", ({ code, name }: { code?: string; name?: string }) => {
-    if (!isAdminOf(socket)) {
-      socket.emit("notice", { message: "Action réservée aux administrateurs" });
+    const userId = userIdOf(socket);
+    if (!userId) {
+      socket.emit("notice", { message: "Connecte-toi pour regarder" });
       return;
     }
-    const result = observeRoom(socket.id, code ?? "", name ?? "", userIdOf(socket));
+    const result = observeRoom(socket.id, code ?? "", name ?? "", userId);
+    if ("error" in result) {
+      socket.emit("notice", { message: result.error });
+      return;
+    }
+    notifyReplaced(result.replacedSocketIds);
+    emitMembership(socket, result.room, result.observerId, true);
+  });
+
+  socket.on("room:watch", ({ userId: target, name }: { userId?: string; name?: string }) => {
+    const userId = userIdOf(socket);
+    if (!userId) {
+      socket.emit("notice", { message: "Connecte-toi pour regarder" });
+      return;
+    }
+    const seat = listUserSeats().find((item) => item.userId === target);
+    if (!seat) {
+      socket.emit("notice", { message: "Ce joueur n’est pas en partie" });
+      return;
+    }
+    const result = observeRoom(socket.id, seat.code, name ?? "", userId);
     if ("error" in result) {
       socket.emit("notice", { message: result.error });
       return;
@@ -245,7 +313,9 @@ io.on("connection", async (socket) => {
   socket.on(
     "room:rejoin",
     ({ code, playerId }: { code?: string; playerId?: string }) => {
-      const result = rejoinRoom(socket.id, code ?? "", playerId ?? "", userIdOf(socket));
+      const userId = requireUser(socket);
+      if (!userId) return;
+      const result = rejoinRoom(socket.id, code ?? "", playerId ?? "", userId);
       if ("error" in result) {
         socket.emit("notice", { message: result.error });
         return;
@@ -351,12 +421,36 @@ function userIdOf(socket: { data: { userId?: unknown } }): string | null {
   return typeof socket.data.userId === "string" ? socket.data.userId : null;
 }
 
+function onlineUserIds(): Set<string> {
+  const online = new Set<string>();
+  for (const sock of io.sockets.sockets.values()) {
+    const id = userIdOf(sock);
+    if (id) online.add(id);
+  }
+  return online;
+}
+
+function userIdParam(raw: unknown): string | null {
+  const id = Array.isArray(raw) ? String(raw[0] ?? "") : String(raw ?? "");
+  return /^[a-f0-9]{16,64}$/i.test(id) ? id : null;
+}
+
+function requireUser(socket: {
+  data: { userId?: unknown };
+  emit: (event: string, payload: unknown) => void;
+}): string | null {
+  const userId = userIdOf(socket);
+  if (userId) return userId;
+  socket.emit("notice", { message: "Connecte-toi pour jouer" });
+  return null;
+}
+
 function isAdminOf(socket: { data: { isAdmin?: unknown } }): boolean {
   return socket.data.isAdmin === true;
 }
 
-function lobbyRoomsFor(socket: { data: { isAdmin?: unknown } }) {
-  return isAdminOf(socket) ? listAdminRooms() : listPublicRooms();
+function lobbyRoomsFor() {
+  return listPublicRooms();
 }
 
 function emitMembership(

@@ -9,6 +9,7 @@ import { unlockAudio } from "../lib/sfx";
 import { authClient } from "../lib/auth-client";
 import { socket } from "../socket";
 import Profile from "./Profile";
+import Users from "./Users";
 
 type Props = {
   name: string;
@@ -18,6 +19,7 @@ type Props = {
   onCreate: () => void;
   onJoin: (code: string) => void;
   onObserve?: (code: string) => void;
+  onWatch?: (userId: string) => void;
   onCloseRoom?: (code: string) => void;
 };
 
@@ -29,12 +31,14 @@ export default function Home({
   onCreate,
   onJoin,
   onObserve,
+  onWatch,
   onCloseRoom,
 }: Props) {
   const [rooms, setRooms] = useState<LobbyRoom[]>([]);
-  const [page, setPage] = useState<"play" | "profile">("play");
+  const [page, setPage] = useState<"play" | "profile" | "users">("play");
   const { data: session } = authClient.useSession();
-  const ready = name.trim().length > 0;
+  const signedIn = Boolean(session?.user);
+  const ready = signedIn && name.trim().length > 0;
 
   useEffect(() => {
     const onRooms = (next: LobbyRoom[]) => setRooms(next);
@@ -46,15 +50,19 @@ export default function Home({
   }, []);
 
   const showProfile = page === "profile" && Boolean(session?.user);
+  const showUsers = page === "users";
 
   return (
-    <div className={`screen home ${showProfile ? "home-profile" : ""}`}>
+    <div className={`screen home ${showProfile || showUsers ? "home-profile" : ""}`}>
       <FloatingLetters />
-      {!showProfile && (
+      {!showProfile && !showUsers && (
         <>
           <div className="logo">
             <LexoLogo />
             <p>Les mots sont sur la table</p>
+            <button className="btn btn-ghost home-players" type="button" onClick={() => setPage("users")}>
+              Joueurs
+            </button>
           </div>
           <AccountPanel
             admin={admin}
@@ -63,23 +71,14 @@ export default function Home({
           />
         </>
       )}
-      {showProfile ? (
+      {showUsers ? (
+        <Users onBack={() => setPage("play")} onWatch={onWatch} />
+      ) : showProfile ? (
         <Profile onBack={() => setPage("play")} onDisplayName={onName} />
       ) : (
         <>
+      {signedIn && (
       <div className="panel">
-        {!session?.user && (
-          <div className="field">
-            <label htmlFor="name">Ton prénom</label>
-            <input
-              id="name"
-              maxLength={16}
-              placeholder="Alex"
-              value={name}
-              onChange={(e) => onName(e.target.value)}
-            />
-          </div>
-        )}
         <div className="btn-row">
           <button
             className="btn btn-gold"
@@ -103,49 +102,27 @@ export default function Home({
           </button>
         </div>
         <p className="hint">
-          {session?.user
-            ? `Tu joueras en tant que ${name.trim() || "…"} · jusqu’à 10 joueurs · grille 4×4`
-            : "Jusqu’à 10 joueurs · grille 4×4 · chrono en direct"}
+          Tu joueras en tant que {name.trim() || "…"} · jusqu’à 10 joueurs · grille 4×4
         </p>
       </div>
+      )}
 
       <section className="lobby-list" aria-live="polite">
-        {admin ? (
-          <>
-            <LobbyRoomGroup
-              title="Salons collectifs"
-              empty="Aucun salon collectif pour le moment."
-              rooms={rooms.filter((room) => !room.solo)}
-              name={name}
-              ready={ready}
-              admin
-              onJoin={onJoin}
-              onObserve={onObserve}
-              onCloseRoom={onCloseRoom}
-            />
-            <LobbyRoomGroup
-              title="Parties solo"
-              empty="Aucune partie solo en cours."
-              rooms={rooms.filter((room) => room.solo)}
-              name={name}
-              ready={ready}
-              admin
-              onJoin={onJoin}
-              onObserve={onObserve}
-              onCloseRoom={onCloseRoom}
-            />
-          </>
-        ) : (
-          <LobbyRoomGroup
-            title="Salons en cours"
-            empty="Aucun salon pour le moment. Crée-en un pour commencer."
-            rooms={rooms}
-            name={name}
-            ready={ready}
-            onJoin={onJoin}
-            onCloseRoom={onCloseRoom}
-          />
-        )}
+        <LobbyRoomGroup
+          title="Parties en cours"
+          empty={
+            signedIn
+              ? "Aucune partie en cours. Lance-en une pour commencer."
+              : "Aucune partie en cours."
+          }
+          rooms={rooms}
+          name={name}
+          ready={ready}
+          admin={admin}
+          onJoin={onJoin}
+          onObserve={onObserve}
+          onCloseRoom={admin ? onCloseRoom : undefined}
+        />
       </section>
         </>
       )}
@@ -263,11 +240,9 @@ function LobbyRoomCard({
         <span className={`lobby-room-phase ${started ? "started" : "waiting"}`}>
           {phaseLabel(room.phase)}
         </span>
-        {admin && (
-          <span className={`lobby-room-kind ${room.solo ? "solo" : "collective"}`}>
-            {room.solo ? "Solo" : "Collectif"}
-          </span>
-        )}
+        <span className={`lobby-room-kind ${room.solo ? "solo" : "collective"}`}>
+          {room.solo ? "Solo" : "Collectif"}
+        </span>
         <span className="lobby-room-count">{countLabel}</span>
       </div>
       {started && (
@@ -299,10 +274,10 @@ function LobbyRoomCard({
           </li>
         ))}
       </ul>
-      <div className={`lobby-room-actions${admin && onObserve ? " admin-actions" : ""}`}>
-        {admin && onObserve && (
+      <div className={`lobby-room-actions${admin && onClose ? " admin-actions" : ""}`}>
+        {onObserve && (
           <button className="btn btn-gold" type="button" onClick={onObserve}>
-            Observer
+            Regarder
           </button>
         )}
         {!room.solo && (

@@ -167,6 +167,13 @@ function ensureStats(userId: string) {
   db.prepare(`INSERT OR IGNORE INTO user_stats (user_id) VALUES (?)`).run(userId);
 }
 
+export function listAllStats(): Map<string, UserStats> {
+  const rows = db.prepare(`SELECT * FROM user_stats`).all() as Record<string, number | string>[];
+  const stats = new Map<string, UserStats>();
+  for (const row of rows) stats.set(String(row.user_id), rowToStats(row));
+  return stats;
+}
+
 function rowToStats(row: Record<string, number | string> | undefined): UserStats {
   if (!row) return { ...EMPTY_STATS };
   return {
@@ -599,6 +606,10 @@ export function getGame(userId: string, gameId: string): GameHistoryDetail | nul
 
 export function getProfile(userId: string): ProfilePayload {
   awardWelcome(userId);
+  return readProfile(userId);
+}
+
+export function readProfile(userId: string): ProfilePayload {
   const stats = rowToStats(getStatsRow(userId));
   const owned = db
     .prepare(`SELECT badge_id, earned_at FROM user_badges WHERE user_id = ? ORDER BY earned_at DESC`)

@@ -19,6 +19,7 @@ export type ClientToServer = {
   "room:create": (data: { name: string; solo?: boolean }) => void;
   "room:join": (data: { code: string; name: string }) => void;
   "room:observe": (data: { code: string; name: string }) => void;
+  "room:watch": (data: { userId: string; name: string }) => void;
   "room:rejoin": (data: { code: string; playerId: string }) => void;
   "room:settings": (settings: Partial<GameSettings>) => void;
   "room:leave": () => void;
