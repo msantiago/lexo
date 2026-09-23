@@ -167,6 +167,16 @@ export function findAuthUser(id: string): AuthUserRecord | null {
   };
 }
 
+export function findAuthImages(ids: string[]): Map<string, string | null> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (unique.length === 0) return new Map();
+  const placeholders = unique.map(() => "?").join(", ");
+  const rows = authDb
+    .prepare(`SELECT id, image FROM "user" WHERE id IN (${placeholders})`)
+    .all(...unique) as { id: string; image: string | null }[];
+  return new Map(rows.map((row) => [row.id, row.image]));
+}
+
 export function listAuthUsers(): AuthUserRecord[] {
   const rows = authDb
     .prepare(`SELECT id, name, email, image, createdAt FROM "user"`)

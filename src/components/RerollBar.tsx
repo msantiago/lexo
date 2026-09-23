@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { PlayerPublic, RerollView } from "@shared/types";
+import ConfirmDialog from "./ConfirmDialog";
 import { socket } from "../socket";
 
 type Props = {
@@ -16,12 +17,6 @@ export default function RerollBar({ reroll, players, now, deal }: Props) {
     setConfirm(false);
   }, [deal, reroll.solo]);
 
-  useEffect(() => {
-    if (!confirm) return;
-    const t = window.setTimeout(() => setConfirm(false), 3500);
-    return () => window.clearTimeout(t);
-  }, [confirm]);
-
   const open = reroll.solo || (reroll.windowEndsAt !== null && now < reroll.windowEndsAt);
   if (!reroll.solo && !open) return null;
 
@@ -31,7 +26,7 @@ export default function RerollBar({ reroll, players, now, deal }: Props) {
   const voted = players.filter((p) => reroll.voterIds.includes(p.id));
 
   const ask = () => {
-    if (reroll.solo && !confirm) {
+    if (reroll.solo) {
       setConfirm(true);
       return;
     }
@@ -44,12 +39,24 @@ export default function RerollBar({ reroll, players, now, deal }: Props) {
         <button
           type="button"
           tabIndex={-1}
-          className={`btn ${confirm ? "btn-coral" : "btn-ghost"} reroll-btn`}
+          className="btn btn-ghost reroll-btn"
           onMouseDown={(e) => e.preventDefault()}
           onClick={ask}
         >
-          {confirm ? "Confirmer le nouveau tirage" : "Nouveau tirage"}
+          Nouveau tirage
         </button>
+        {confirm && (
+          <ConfirmDialog
+            title="Nouveau tirage ?"
+            message="La grille est remplacée. Les mots déjà validés sur cette manche restent."
+            confirmLabel="Relancer"
+            onCancel={() => setConfirm(false)}
+            onConfirm={() => {
+              setConfirm(false);
+              socket.emit("game:reroll");
+            }}
+          />
+        )}
       </div>
     );
   }

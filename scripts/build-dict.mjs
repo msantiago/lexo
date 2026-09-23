@@ -178,7 +178,7 @@ async function main() {
     if (line.startsWith("#") || !line.trim()) continue;
     const cols = line.split("\t");
     if (!header) {
-      if (!cols.includes("Flexion") || !cols.includes("Étiquettes")) continue;
+      if (!cols.includes("Flexion") || !cols.includes("Étiquettes") || !cols.includes("Lemme")) continue;
       header = cols;
       header.forEach((h, i) => {
         idx[h] = i;
@@ -187,6 +187,7 @@ async function main() {
     }
 
     const ortho = cols[idx.Flexion];
+    const lemmaRaw = cols[idx.Lemme] || "";
     const tagsRaw = cols[idx.Étiquettes] || "";
     const notes = cols[idx.Notes] || "";
     const subdic = cols[idx["Sous-dictionnaire"]] || "";
@@ -209,6 +210,25 @@ async function main() {
       continue;
     }
     if (ortho.includes("'") || ortho.includes("-") || ortho.includes(" ")) {
+      skipped += 1;
+      continue;
+    }
+    // Casse interne : formule chimique (NaCl, pH) ou marque (FireWire).
+    if (/[a-zàáâäãåèéêëìíîïòóôöõùúûüýÿçñœæ][A-Z]/.test(ortho)) {
+      skipped += 1;
+      continue;
+    }
+    // Sigle (CHU, ARNr) ou ordinal romain (XXe, IIIe) : plusieurs capitales.
+    const capitals = ortho.match(/[A-Z]/g);
+    if (capitals && capitals.length >= 2) {
+      skipped += 1;
+      continue;
+    }
+    // Ordinal romain à une capitale (Ve, Xe, Ier) ou en toutes lettres (ixième).
+    if (
+      noteToks.includes("ord") &&
+      (/^[IVXLCDM]+(?:e|es|er|ers|re|res|d|de|ds|des)$/.test(ortho) || /^ixièmes?$/.test(ortho))
+    ) {
       skipped += 1;
       continue;
     }
@@ -235,8 +255,11 @@ async function main() {
       bucket = new Map();
       dict.set(key, bucket);
     }
+    let lemma = lemmaRaw.trim();
+    if (!lemma || /[|:]/.test(lemma)) lemma = ortho;
     for (const kind of kinds) {
-      const token = `${ortho}:${encode(kind, genre, nombre)}`;
+      const code = encode(kind, genre, nombre);
+      const token = lemma === ortho ? `${ortho}:${code}` : `${ortho}:${code}:${lemma}`;
       bucket.set(token, token);
     }
     kept += 1;

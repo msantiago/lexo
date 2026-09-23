@@ -1,29 +1,190 @@
 import type { ReactNode } from "react";
-import LexoLogo from "../components/LexoLogo";
-import { goHome, PRIVACY_PATH, TERMS_PATH } from "../lib/nav";
+import { version } from "../../package.json";
+import { goHome, PRIVACY_PATH } from "../lib/nav";
 
 const UPDATED = "23 septembre 2026";
 
-function LegalPage({ title, children }: { title: string; children: ReactNode }) {
+function LegalPage({
+  title,
+  children,
+  updated = UPDATED,
+}: {
+  title: string;
+  children: ReactNode;
+  updated?: string | null;
+}) {
   return (
-    <div className="screen legal">
-      <div className="logo legal-logo">
-        <LexoLogo />
-        <p>Les mots sont sur la table</p>
-      </div>
-      <article className="panel legal-panel">
-        <button className="btn btn-ghost" type="button" onClick={goHome}>
-          Retour
-        </button>
-        <h1>{title}</h1>
-        <p className="legal-updated">Dernière mise à jour : {UPDATED}</p>
-        {children}
-        <nav className="legal-switch" aria-label="Autres pages légales">
-          <a href={PRIVACY_PATH}>Confidentialité</a>
-          <a href={TERMS_PATH}>Conditions d’utilisation</a>
-        </nav>
-      </article>
-    </div>
+    <article className="panel legal-panel">
+      <button className="nav-back" type="button" onClick={goHome}>
+        Retour
+      </button>
+      <h1>{title}</h1>
+      {updated ? <p className="legal-updated">Dernière mise à jour : {updated}</p> : null}
+      {children}
+    </article>
+  );
+}
+
+const OFL = "https://openfontlicense.org/";
+const MIT = "https://opensource.org/license/mit";
+
+function ExternalLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  );
+}
+
+function CreditProjects({
+  items,
+}: {
+  items: { name: string; href: string; license: string; licenseHref: string; note?: string }[];
+}) {
+  return (
+    <ul className="credit-projects">
+      {items.map((item) => (
+        <li key={item.name}>
+          <span>
+            <ExternalLink href={item.href}>{item.name}</ExternalLink>
+            {item.note ? <small>{item.note}</small> : null}
+          </span>
+          <ExternalLink href={item.licenseHref}>{item.license}</ExternalLink>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function Credits() {
+  return (
+    <LegalPage title="Crédits" updated={null}>
+      <p>
+        Lexo est un jeu de lettres créé par Marc-Antoine Santiago en septembre 2026. Version{" "}
+        {version}. Le jeu lui-même n’est pas un logiciel libre. Les éléments ci-dessous viennent
+        de projets tiers, avec leur licence.
+      </p>
+
+      <h2>Dictionnaire</h2>
+      <p>
+        Les mots acceptés viennent du{" "}
+        <ExternalLink href="https://grammalecte.net/">lexique Grammalecte</ExternalLink> 7.7,
+        variante Classique (orthographe traditionnelle), issu de Dicollecte. Licence{" "}
+        <ExternalLink href="https://www.mozilla.org/MPL/2.0/">
+          Mozilla Public License 2.0
+        </ExternalLink>
+        .
+      </p>
+
+      <h2>Définitions</h2>
+      <p>
+        Les définitions affichées dans une partie proviennent du{" "}
+        <ExternalLink href="https://fr.wiktionary.org/">Wiktionnaire</ExternalLink>, un projet de
+        la Wikimedia Foundation. Les textes sont sous licence{" "}
+        <ExternalLink href="https://creativecommons.org/licenses/by-sa/4.0/deed.fr">
+          Creative Commons Attribution-Partage dans les mêmes conditions 4.0
+        </ExternalLink>
+        .
+      </p>
+
+      <h2>Caractères</h2>
+      <p>
+        Nunito (Vernon Adams), Fraunces (Undercase Type) et Fredoka (Milena Brandão) sont
+        distribuées par Google Fonts sous la{" "}
+        <ExternalLink href={OFL}>SIL Open Font License 1.1</ExternalLink>.
+      </p>
+      <CreditProjects
+        items={[
+          {
+            name: "Nunito",
+            href: "https://fonts.google.com/specimen/Nunito",
+            license: "SIL OFL 1.1",
+            licenseHref: OFL,
+          },
+          {
+            name: "Fraunces",
+            href: "https://fonts.google.com/specimen/Fraunces",
+            license: "SIL OFL 1.1",
+            licenseHref: OFL,
+          },
+          {
+            name: "Fredoka",
+            href: "https://fonts.google.com/specimen/Fredoka",
+            license: "SIL OFL 1.1",
+            licenseHref: OFL,
+          },
+        ]}
+      />
+
+      <h2>Logiciels libres</h2>
+      <p>Bibliothèques utilisées pour faire tourner le jeu.</p>
+      <CreditProjects
+        items={[
+          { name: "React", href: "https://react.dev/", license: "MIT", licenseHref: MIT },
+          { name: "React DOM", href: "https://react.dev/", license: "MIT", licenseHref: MIT },
+          { name: "Express", href: "https://expressjs.com/", license: "MIT", licenseHref: MIT },
+          {
+            name: "Socket.IO",
+            href: "https://socket.io/",
+            license: "MIT",
+            licenseHref: MIT,
+          },
+          {
+            name: "Framer Motion",
+            href: "https://github.com/motiondivision/motion",
+            license: "MIT",
+            licenseHref: MIT,
+          },
+          {
+            name: "better-auth",
+            href: "https://better-auth.com/",
+            license: "MIT",
+            licenseHref: MIT,
+          },
+          {
+            name: "better-sqlite3",
+            href: "https://github.com/WiseLibs/better-sqlite3",
+            license: "MIT",
+            licenseHref: MIT,
+            note: "Le moteur SQLite intégré est dans le domaine public.",
+          },
+          { name: "jose", href: "https://github.com/panva/jose", license: "MIT", licenseHref: MIT },
+          {
+            name: "dotenv",
+            href: "https://github.com/motdotla/dotenv",
+            license: "BSD 2-Clause",
+            licenseHref: "https://opensource.org/license/bsd-2-clause",
+          },
+        ]}
+      />
+
+      <h2>Outils de développement</h2>
+      <p>Ils servent à construire Lexo. Ils ne font pas partie de la partie jouée.</p>
+      <CreditProjects
+        items={[
+          { name: "Vite", href: "https://vite.dev/", license: "MIT", licenseHref: MIT },
+          {
+            name: "TypeScript",
+            href: "https://www.typescriptlang.org/",
+            license: "Apache 2.0",
+            licenseHref: "https://www.apache.org/licenses/LICENSE-2.0",
+          },
+          { name: "tsx", href: "https://tsx.hirok.io/", license: "MIT", licenseHref: MIT },
+          {
+            name: "@vitejs/plugin-react",
+            href: "https://github.com/vitejs/vite-plugin-react",
+            license: "MIT",
+            licenseHref: MIT,
+          },
+          {
+            name: "concurrently",
+            href: "https://github.com/open-cli-tools/concurrently",
+            license: "MIT",
+            licenseHref: MIT,
+          },
+        ]}
+      />
+    </LegalPage>
   );
 }
 

@@ -15,67 +15,70 @@ type Props = {
 };
 
 export default function Lobby({ room, isHost, admin, onSettings, onStart, onLeave, onCloseRoom }: Props) {
+  const canStart = isHost && !room.observing;
+
   return (
-    <div className="screen lobby">
-      <div>
-        <section className="card">
-          {room.observing && <p className="observe-badge">Observateur</p>}
-          <h2>{room.observing ? "Salon observé" : "Autour de la table"}</h2>
-          <div className="players">
-            {room.players.map((p) => (
-              <div className={`player-chip ${p.connected ? "" : "offline"}`} key={p.id}>
-                <div className="avatar" style={{ background: p.color }}>
-                  {p.name.slice(0, 1).toUpperCase()}
-                </div>
-                <div className="meta">
-                  <strong>{p.name}</strong>
-                  <span>{p.connected ? "en ligne" : "déconnecté"}</span>
-                </div>
-                {p.id === room.hostId && <span className="host-badge">Hôte</span>}
-              </div>
-            ))}
-          </div>
-        </section>
+    <div className="screen launch">
+      <header className="launch-top">
+        <ul className="launch-faces">
+          {room.players.map((player) => (
+            <li className={player.connected ? "" : "offline"} key={player.id}>
+              <span className="avatar" style={{ background: player.color }}>
+                {player.name.slice(0, 1).toUpperCase()}
+              </span>
+              <strong>{player.name}</strong>
+              {player.id === room.hostId && <span>Hôte</span>}
+            </li>
+          ))}
+        </ul>
 
-        <div className="btn-row" style={{ marginTop: 16 }}>
-          {room.observing ? (
-            <p className="hint">Tu observes ce salon — la partie commencera sans toi.</p>
-          ) : isHost ? (
-            <button
-              className="btn btn-gold"
-              onClick={() => {
-                unlockAudio();
-                onStart();
-              }}
-            >
-              {room.players.length === 1 ? "C’est parti !" : `Lancer la manche (${room.players.length})`}
-            </button>
-          ) : (
-            <p className="hint">En attente de l’hôte…</p>
-          )}
-          <LeaveButton
-            onLeave={onLeave}
-            label="Quitter"
-            confirmLabel={room.observing ? "Arrêter d’observer ?" : undefined}
-          />
-          {admin && onCloseRoom && (
-            <LeaveButton
-              onLeave={onCloseRoom}
-              label="Fermer le salon"
-              confirmLabel="Confirmer : fermer ?"
-            />
-          )}
-        </div>
-      </div>
+        {room.observing ? (
+          <p className="hint">Tu observes ce salon. La partie commencera sans toi.</p>
+        ) : canStart ? (
+          <button
+            className="btn btn-gold launch-go"
+            onClick={() => {
+              unlockAudio();
+              onStart();
+            }}
+          >
+            {room.players.length === 1 ? "C’est parti" : `C’est parti · ${room.players.length}`}
+          </button>
+        ) : (
+          <p className="hint">En attente de l’hôte…</p>
+        )}
+      </header>
 
-      {isHost && !room.observing ? (
+      {canStart ? (
         <SettingsPanel settings={room.settings} onChange={onSettings} />
       ) : (
-        <section className="card rules-summary">
-          <h2>Règles</h2>
-          <p>{summarizeRules(room.settings)}</p>
-        </section>
+        <p className="launch-summary">{summarizeRules(room.settings)}</p>
       )}
+
+      <div className="launch-links">
+        <LeaveButton
+          quiet
+          onLeave={onLeave}
+          label="Quitter"
+          title={room.observing ? "Arrêter d’observer ?" : "Quitter le salon ?"}
+          message={
+            room.observing
+              ? "Tu ne verras plus cette partie. Elle continue pour les joueurs."
+              : "Tu quittes la table. Les autres peuvent continuer sans toi."
+          }
+          confirmLabel={room.observing ? "Arrêter" : "Quitter"}
+        />
+        {admin && onCloseRoom && (
+          <LeaveButton
+            quiet
+            onLeave={onCloseRoom}
+            label="Fermer"
+            title="Fermer le salon ?"
+            message="La partie s’arrête tout de suite, pour toi et pour les autres joueurs."
+            confirmLabel="Fermer"
+          />
+        )}
+      </div>
     </div>
   );
 }

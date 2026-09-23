@@ -3,11 +3,11 @@ import { AnimatePresence, motion } from "framer-motion";
 import type { GameSettings, RoomView } from "@shared/types";
 import CreditsFooter from "./components/CreditsFooter";
 import Home from "./screens/Home";
-import { Privacy, Terms } from "./screens/Legal";
+import { Credits, Privacy, Terms } from "./screens/Legal";
 import Lobby from "./screens/Lobby";
 import Play from "./screens/Play";
 import Results from "./screens/Results";
-import { isLegalPath, isPrivacyPath, isTermsPath } from "./lib/nav";
+import { goHome as leaveInfo, isCreditsPath, isLegalPath, isPrivacyPath, isTermsPath } from "./lib/nav";
 import { socket } from "./socket";
 import { installAudioUnlock } from "./lib/sfx";
 
@@ -174,9 +174,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {isPrivacyPath(path) && <Privacy />}
-      {isTermsPath(path) && <Terms />}
-      {!legal && !room && (
+      {(!room || legal) && (
         <Home
           name={name}
           admin={admin}
@@ -187,6 +185,16 @@ export default function App() {
           onObserve={(code) => socket.emit("room:observe", { code, name })}
           onWatch={(userId) => socket.emit("room:watch", { userId, name })}
           onCloseRoom={closeRoom}
+          info={
+            isCreditsPath(path) ? (
+              <Credits />
+            ) : isPrivacyPath(path) ? (
+              <Privacy />
+            ) : isTermsPath(path) ? (
+              <Terms />
+            ) : null
+          }
+          onExitInfo={leaveInfo}
         />
       )}
       {!legal && room?.phase === "lobby" && (

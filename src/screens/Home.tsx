@@ -1,12 +1,14 @@
-import { useEffect, useState } from "react";
-import { MAX_PLAYERS, foldPlayerName, type LobbyRoom } from "@shared/types";
-import { difficultyLabel, phaseLabel } from "@shared/rules";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { MAX_PLAYERS, foldPlayerName, type LobbyPlayer, type LobbyRoom } from "@shared/types";
+import { difficultyLabel } from "@shared/rules";
 import AccountPanel from "../components/AccountPanel";
+import Avatar from "../components/Avatar";
 import LeaveButton from "../components/LeaveButton";
+import { JoinButton, WatchButton } from "../components/RoundActions";
 import FloatingLetters from "../components/FloatingLetters";
 import LexoLogo from "../components/LexoLogo";
 import { unlockAudio } from "../lib/sfx";
-import { authClient } from "../lib/auth-client";
+import { authClient, displayNameFromUser, refreshSocketAuth } from "../lib/auth-client";
 import { socket } from "../socket";
 import Profile from "./Profile";
 import Users from "./Users";
@@ -21,6 +23,8 @@ type Props = {
   onObserve?: (code: string) => void;
   onWatch?: (userId: string) => void;
   onCloseRoom?: (code: string) => void;
+  info?: ReactNode;
+  onExitInfo?: () => void;
 };
 
 export default function Home({
@@ -33,12 +37,20 @@ export default function Home({
   onObserve,
   onWatch,
   onCloseRoom,
+  info,
+  onExitInfo,
 }: Props) {
   const [rooms, setRooms] = useState<LobbyRoom[]>([]);
-  const [page, setPage] = useState<"play" | "profile" | "users">("play");
-  const { data: session } = authClient.useSession();
+  const [page, setPage] = useState<"play" | "account" | "users">("play");
+  const [usersListRequest, setUsersListRequest] = useState(0);
+  const { data: session, isPending } = authClient.useSession();
   const signedIn = Boolean(session?.user);
   const ready = signedIn && name.trim().length > 0;
+
+  useEffect(() => {
+    if (!session?.user) return;
+    onName(displayNameFromUser(session.user.name, session.user.email));
+  }, [session?.user?.id, session?.user?.name, session?.user?.email, onName]);
 
   useEffect(() => {
     const onRooms = (next: LobbyRoom[]) => setRooms(next);
@@ -49,84 +61,146 @@ export default function Home({
     };
   }, []);
 
-  const showProfile = page === "profile" && Boolean(session?.user);
-  const showUsers = page === "users";
+  const wide = Boolean(info) || page === "users" || (page === "account" && signedIn && !isPending);
+  const openTab = (next: "play" | "account" | "users") => {
+    if (info) onExitInfo?.();
+    setPage(next);
+  };
+
+  const signOut = async () => {
+    await authClient.signOut();
+    refreshSocketAuth();
+    setPage("play");
+  };
+
+  const showApp = signedIn && !isPending;
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const [dockStuck, setDockStuck] = useState(false);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!showApp || !sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setDockStuck(!entry.isIntersecting),
+      { threshold: 0 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [showApp]);
 
   return (
-    <div className={`screen home ${showProfile || showUsers ? "home-profile" : ""}`}>
+    <div className={`screen home ${showApp && wide ? "home-profile" : ""}`}>
       <FloatingLetters />
-      {!showProfile && !showUsers && (
+      <header className="home-brand">
+        <LexoLogo />
+        <p>Les mots sont sur la table</p>
+      </header>
+      {showApp && (
         <>
-          <div className="logo">
-            <LexoLogo />
-            <p>Les mots sont sur la table</p>
-            <button className="btn btn-ghost home-players" type="button" onClick={() => setPage("users")}>
-              Joueurs
-            </button>
+          <div ref={sentinelRef} className="dock-sentinel" aria-hidden="true" />
+          <nav className={`dock${dockStuck ? " is-stuck" : ""}`} aria-label="Navigation">
+          <button type="button" className="dock-logo" onClick={() => openTab("play")} tabIndex={dockStuck ? 0 : -1}>
+            <LexoLogo compact />
+          </button>
+          <div className="dock-tabs">
+            <DockTab current={!info && page === "play"} onClick={() => openTab("play")} label="Jouer">
+              <DiceIcon />
+            </DockTab>
+            <DockTab
+              current={!info && page === "users"}
+              onClick={() => {
+                openTab("users");
+                setUsersListRequest((request) => request + 1);
+              }}
+              label="Joueurs"
+            >
+              <PeopleIcon />
+            </DockTab>
+            <DockTab
+              current={!info && page === "account"}
+              onClick={() => openTab("account")}
+              label="Compte"
+            >
+              <PersonIcon />
+            </DockTab>
           </div>
-          <AccountPanel
-            admin={admin}
-            onDisplayName={onName}
-            onOpenProfile={session?.user ? () => setPage("profile") : undefined}
-          />
+        </nav>
         </>
       )}
-      {showUsers ? (
-        <Users onBack={() => setPage("play")} onWatch={onWatch} />
-      ) : showProfile ? (
-        <Profile onBack={() => setPage("play")} onDisplayName={onName} />
+      {info ? (
+        info
+      ) : !showApp ? (
+        isPending ? (
+          <p className="hint">Chargement…</p>
+        ) : (
+          <AccountPanel admin={admin} onDisplayName={onName} />
+        )
+      ) : page === "users" ? (
+        <Users listRequest={usersListRequest} onWatch={onWatch} />
+      ) : page === "account" ? (
+        <Profile onDisplayName={onName} onSignOut={() => void signOut()} />
       ) : (
         <>
-      {signedIn && (
-      <div className="panel">
-        <div className="btn-row">
-          <button
-            className="btn btn-gold"
-            disabled={!ready}
-            onClick={() => {
-              unlockAudio();
-              onSolo();
-            }}
-          >
-            Partie solo
-          </button>
-          <button
-            className="btn btn-ivory"
-            disabled={!ready}
-            onClick={() => {
-              unlockAudio();
-              onCreate();
-            }}
-          >
-            Créer un salon
-          </button>
-        </div>
-        <p className="hint">
-          Tu joueras en tant que {name.trim() || "…"} · jusqu’à 10 joueurs · grille 4×4
-        </p>
-      </div>
-      )}
-
-      <section className="lobby-list" aria-live="polite">
-        <LobbyRoomGroup
-          title="Parties en cours"
-          empty={
-            signedIn
-              ? "Aucune partie en cours. Lance-en une pour commencer."
-              : "Aucune partie en cours."
-          }
-          rooms={rooms}
-          name={name}
-          ready={ready}
-          admin={admin}
-          onJoin={onJoin}
-          onObserve={onObserve}
-          onCloseRoom={admin ? onCloseRoom : undefined}
-        />
-      </section>
+          <div className="play-launch">
+            <button
+              className="btn btn-gold"
+              disabled={!ready}
+              onClick={() => {
+                unlockAudio();
+                onSolo();
+              }}
+            >
+              Partie solo
+            </button>
+            <button
+              className="btn btn-ivory"
+              disabled={!ready}
+              onClick={() => {
+                unlockAudio();
+                onCreate();
+              }}
+            >
+              Créer un salon
+            </button>
+          </div>
+          <p className="hint">
+            Tu joueras en tant que {name.trim() || "…"} · jusqu’à 10 joueurs · grille 4×4
+          </p>
+          <section className="lobby-list" aria-live="polite">
+            <LobbyRoomGroup
+              title="Parties en cours"
+              empty="Aucune partie en cours. Lance-en une pour commencer."
+              rooms={rooms}
+              name={name}
+              ready={ready}
+              admin={admin}
+              onJoin={onJoin}
+              onObserve={onObserve}
+              onCloseRoom={admin ? onCloseRoom : undefined}
+            />
+          </section>
         </>
       )}
     </div>
+  );
+}
+
+function DockTab({
+  current,
+  onClick,
+  label,
+  children,
+}: {
+  current: boolean;
+  onClick: () => void;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <button type="button" aria-current={current ? "page" : undefined} onClick={onClick}>
+      {children}
+      {label}
+    </button>
   );
 }
 
@@ -157,7 +231,7 @@ function LobbyRoomGroup({
       {rooms.length === 0 ? (
         <p className="hint">{empty}</p>
       ) : (
-        <ul className="lobby-rooms">
+        <ul className="live-games">
           {rooms.map((room) => {
             const folded = foldPlayerName(name);
             const mineOffline = room.players.some(
@@ -173,7 +247,7 @@ function LobbyRoomGroup({
                 room={room}
                 nameTaken={nameTaken}
                 canRejoin={canRejoin}
-                canJoin={canRejoin || (ready && room.playerCount < MAX_PLAYERS && !nameTaken)}
+                canJoin={canRejoin || (ready && !room.solo && room.playerCount < MAX_PLAYERS && !nameTaken)}
                 admin={admin}
                 onJoin={() => {
                   unlockAudio();
@@ -216,83 +290,148 @@ function LobbyRoomCard({
   onObserve?: () => void;
   onClose?: () => void;
 }) {
-  const full = room.playerCount >= MAX_PLAYERS;
   const started = room.phase !== "lobby";
-  const countLabel =
-    room.playerCount === 1 ? "1 joueur" : `${room.playerCount} joueurs`;
   const playing = room.phase === "playing";
-  const players = started
-    ? [...room.players].sort(
-        (a, b) =>
-          b.totalScore + (playing ? b.roundScore : 0) -
-            (a.totalScore + (playing ? a.roundScore : 0)) || a.name.localeCompare(b.name, "fr"),
-      )
-    : room.players;
+  const host = room.players.find((player) => player.isHost) ?? room.players[0];
+  const ranked = rankPlayers(room.players, playing);
+  const status = gameStatus(room.phase);
+  const countLabel = room.playerCount === 1 ? "1 joueur" : `${room.playerCount} joueurs`;
 
+  return (
+    <li className="live-game">
+      <div className="live-host">
+        {host && (
+          <Avatar
+            name={host.name}
+            image={host.image}
+            color={host.image ? undefined : host.color}
+            online={host.connected}
+          />
+        )}
+        <div className="live-host-meta">
+          <strong>{host?.name ?? (room.solo ? "Solo" : "Salon")}</strong>
+          <span className="host-badge">Maître du jeu</span>
+          <span className={`player-status ${status.kind}`}>{status.label}</span>
+          <span className="live-sub">
+            {room.solo ? "Solo" : "Collectif"}
+            {" · "}
+            {difficultyLabel(room.difficulty)}
+            {" · "}
+            {countLabel}
+          </span>
+        </div>
+      </div>
+      <ol className="live-scores">
+        {ranked.map((player) => (
+          <li key={player.id} className={player.isHost ? "is-host" : player.connected ? "" : "offline"}>
+            <Avatar
+              name={player.name}
+              image={player.image}
+              color={player.image ? undefined : player.color}
+              online={player.connected}
+            />
+            <span className="live-seat-name">{player.name}</span>
+            {started && <b>{player.totalScore + (playing ? player.roundScore : 0)}</b>}
+          </li>
+        ))}
+      </ol>
+      <RoomActions
+        room={room}
+        canJoin={canJoin}
+        canRejoin={canRejoin}
+        nameTaken={nameTaken}
+        admin={admin}
+        onJoin={onJoin}
+        onObserve={onObserve}
+        onClose={onClose}
+      />
+    </li>
+  );
+}
+
+function rankPlayers(players: LobbyPlayer[], playing: boolean): LobbyPlayer[] {
+  const points = (player: LobbyPlayer) => player.totalScore + (playing ? player.roundScore : 0);
+  return [...players].sort(
+    (a, b) => points(b) - points(a) || a.name.localeCompare(b.name, "fr"),
+  );
+}
+
+function gameStatus(phase: LobbyRoom["phase"]): { label: string; kind: string } {
+  if (phase === "playing") return { label: "En cours", kind: "started" };
+  if (phase === "results") return { label: "Résultats", kind: "results" };
+  return { label: "En attente", kind: "waiting" };
+}
+
+function RoomActions({
+  room,
+  canJoin,
+  canRejoin,
+  nameTaken,
+  admin,
+  onJoin,
+  onObserve,
+  onClose,
+}: {
+  room: LobbyRoom;
+  canJoin: boolean;
+  canRejoin: boolean;
+  nameTaken: boolean;
+  admin?: boolean;
+  onJoin: () => void;
+  onObserve?: () => void;
+  onClose?: () => void;
+}) {
+  const full = room.playerCount >= MAX_PLAYERS;
   let joinLabel = "Rejoindre";
   if (canRejoin) joinLabel = "Revenir";
   else if (full) joinLabel = "Complet";
   else if (nameTaken) joinLabel = "Prénom pris";
 
   return (
-    <li className={`lobby-room ${started ? "started" : "waiting"}`}>
-      <div className="lobby-room-head">
-        <span className={`lobby-room-phase ${started ? "started" : "waiting"}`}>
-          {phaseLabel(room.phase)}
-        </span>
-        <span className={`lobby-room-kind ${room.solo ? "solo" : "collective"}`}>
-          {room.solo ? "Solo" : "Collectif"}
-        </span>
-        <span className="lobby-room-count">{countLabel}</span>
-      </div>
-      {started && (
-        <p className="lobby-room-difficulty">Difficulté : {difficultyLabel(room.difficulty)}</p>
+    <div className="live-actions">
+      {onObserve && <WatchButton onClick={onObserve} />}
+      {!room.solo && <JoinButton label={joinLabel} disabled={!canJoin} onClick={onJoin} />}
+      {admin && onClose && (
+        <LeaveButton
+          compact
+          onLeave={onClose}
+          label="Fermer"
+          title="Fermer cette partie ?"
+          message="Les joueurs sont renvoyés à l’accueil. Cette partie ne reprendra pas."
+          confirmLabel="Fermer"
+        />
       )}
-      <ul className={`lobby-room-players ${started ? "scored" : ""}`}>
-        {players.map((p) => (
-          <li className={`lobby-room-player ${p.connected ? "" : "offline"}`} key={p.id}>
-            <span className="avatar" style={{ background: p.color }}>
-              {p.name.slice(0, 1).toUpperCase()}
-            </span>
-            <strong>{p.name}</strong>
-            {p.isHost && <span className="host-badge">Hôte</span>}
-            {!p.connected && <span className="offline-badge">hors ligne</span>}
-            {started && (
-              <span className="lobby-room-scores">
-                <span className="lobby-room-total">
-                  {p.totalScore}
-                  <small>total</small>
-                </span>
-                {playing && (
-                  <span className="lobby-room-round">
-                    {p.roundScore}
-                    <small>manche</small>
-                  </span>
-                )}
-              </span>
-            )}
-          </li>
-        ))}
-      </ul>
-      <div className={`lobby-room-actions${admin && onClose ? " admin-actions" : ""}`}>
-        {onObserve && (
-          <button className="btn btn-gold" type="button" onClick={onObserve}>
-            Regarder
-          </button>
-        )}
-        {!room.solo && (
-          <button className="btn btn-ghost" type="button" disabled={!canJoin} onClick={onJoin}>
-            {joinLabel}
-          </button>
-        )}
-        {admin && onClose && (
-          <LeaveButton
-            onLeave={onClose}
-            label="Fermer le salon"
-            confirmLabel="Confirmer : fermer ?"
-          />
-        )}
-      </div>
-    </li>
+    </div>
+  );
+}
+
+function DiceIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="9" cy="9" r="1.2" fill="currentColor" />
+      <circle cx="15" cy="15" r="1.2" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.2" fill="currentColor" />
+    </svg>
+  );
+}
+
+function PeopleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <circle cx="9" cy="9" r="2.4" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="16" cy="10" r="2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M4.5 18.5c.6-2.4 2.4-3.6 4.5-3.6s3.9 1.2 4.5 3.6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M14 15.2c1.5-.2 3 .6 3.8 2.6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function PersonIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <circle cx="12" cy="9" r="2.6" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M6 18.5c.8-2.8 2.8-4.2 6-4.2s5.2 1.4 6 4.2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
   );
 }

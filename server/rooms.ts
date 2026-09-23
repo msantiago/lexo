@@ -26,6 +26,7 @@ import { isValidPath, pathToWord, wordPoints } from "../shared/dice.ts";
 import { addCustomWord, lookupWord } from "./dictionary.ts";
 import { findAllWords, rollPlayableGrid } from "./solver.ts";
 import { notifyRoomCreated } from "./alert.ts";
+import { findAuthImages } from "./auth.ts";
 import { awardLexicographer, recordFinishedRound, type RoundSnapshot } from "./store.ts";
 
 type Player = {
@@ -439,7 +440,7 @@ export function setLobbyBroadcast(fn: LobbyBroadcast) {
   lobbyBroadcast = fn;
 }
 
-function toLobbyRoom(room: Room): LobbyRoom {
+function toLobbyRoom(room: Room, images: Map<string, string | null>): LobbyRoom {
   return {
     code: room.code,
     phase: room.phase,
@@ -451,6 +452,7 @@ function toLobbyRoom(room: Room): LobbyRoom {
       id: p.id,
       name: p.name,
       color: p.color,
+      image: p.userId ? (images.get(p.userId) ?? null) : null,
       isHost: p.id === room.hostId,
       connected: isConnected(p),
       totalScore: p.totalScore,
@@ -459,12 +461,20 @@ function toLobbyRoom(room: Room): LobbyRoom {
   };
 }
 
+function publishLobby(list: Room[]): LobbyRoom[] {
+  const ids = list.flatMap((room) =>
+    room.players.map((player) => player.userId).filter((id): id is string => Boolean(id)),
+  );
+  const images = findAuthImages(ids);
+  return list.map((room) => toLobbyRoom(room, images));
+}
+
 export function listPublicRooms(): LobbyRoom[] {
-  return [...rooms.values()].filter(hasConnectedPlayers).map(toLobbyRoom);
+  return publishLobby([...rooms.values()].filter(hasConnectedPlayers));
 }
 
 export function listAdminRooms(): LobbyRoom[] {
-  return [...rooms.values()].filter(hasConnectedPlayers).map(toLobbyRoom);
+  return publishLobby([...rooms.values()].filter(hasConnectedPlayers));
 }
 
 export type UserSeat = {
@@ -1212,7 +1222,8 @@ export function adoptRejectedWord(socketId: string, key: string) {
   const room = getRoomBySocket(socketId);
   if (!room) return { error: "Pas dans un salon" as const };
   const player = room.players.find((p) => p.socketId === socketId);
-  if (!player) return { error: "Pas dans un salon" as const };
+  const observer = room.observers.find((o) => o.socketId === socketId);
+  if (!player && !observer) return { error: "Pas dans un salon" as const };
   if (room.phase !== "results") {
     return { error: "Ajout possible à la fin de la manche" as const };
   }
@@ -1256,9 +1267,10 @@ export function adoptRejectedWord(socketId: string, key: string) {
   }
   room.possibleCount = room.possibleWords.length;
   attempt.added = true;
-  if (player.userId) {
-    const extra = awardLexicographer(player.userId);
-    if (extra.length) {
+  const actorUserId = player?.userId ?? observer?.userId ?? null;
+  if (actorUserId) {
+    const extra = awardLexicographer(actorUserId);
+    if (player && extra.length) {
       player.earnedBadges = [...player.earnedBadges, ...extra];
       if (!room.solo && !isSolo(room)) {
         for (const badge of extra) announceBadge(room, player, badge);

@@ -1,39 +1,48 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import ConfirmDialog from "./ConfirmDialog";
 
 type Props = {
   onLeave: () => void;
   label?: string;
+  title?: string;
+  message: string;
   confirmLabel?: string;
   compact?: boolean;
+  quiet?: boolean;
 };
 
 export default function LeaveButton({
   onLeave,
-  label = "Quitter la table",
-  confirmLabel = "Confirmer : quitter ?",
+  label = "Quitter",
+  title,
+  message,
+  confirmLabel,
   compact = false,
+  quiet = false,
 }: Props) {
-  const [confirm, setConfirm] = useState(false);
-
-  useEffect(() => {
-    if (!confirm) return;
-    const t = window.setTimeout(() => setConfirm(false), 3500);
-    return () => window.clearTimeout(t);
-  }, [confirm]);
+  const [open, setOpen] = useState(false);
 
   return (
-    <button
-      type="button"
-      className={`btn ${confirm ? "btn-coral" : "btn-ghost"}${compact ? " btn-compact" : ""}`}
-      onClick={() => {
-        if (!confirm) {
-          setConfirm(true);
-          return;
-        }
-        onLeave();
-      }}
-    >
-      {confirm ? confirmLabel : label}
-    </button>
+    <>
+      <button
+        type="button"
+        className={quiet ? "text-action" : `btn btn-ghost${compact ? " btn-compact" : ""}`}
+        onClick={() => setOpen(true)}
+      >
+        {label}
+      </button>
+      {open && (
+        <ConfirmDialog
+          title={title ?? `${label} ?`}
+          message={message}
+          confirmLabel={confirmLabel ?? label}
+          onCancel={() => setOpen(false)}
+          onConfirm={() => {
+            setOpen(false);
+            onLeave();
+          }}
+        />
+      )}
+    </>
   );
 }

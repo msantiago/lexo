@@ -26,11 +26,12 @@ import { loadImageFile } from "../lib/crop-avatar";
 type Tab = "badges" | "words" | "games";
 
 type Props = {
-  onBack: () => void;
+  onBack?: () => void;
   onDisplayName: (name: string) => void;
+  onSignOut?: () => void;
 };
 
-export default function Profile({ onBack, onDisplayName }: Props) {
+export default function Profile({ onBack, onDisplayName, onSignOut }: Props) {
   const { data: session } = authClient.useSession();
   const [tab, setTab] = useState<Tab>("badges");
   const [profile, setProfile] = useState<ProfilePayload | null>(null);
@@ -182,9 +183,11 @@ export default function Profile({ onBack, onDisplayName }: Props) {
     <div className="profile">
       <section className="panel profile-hero" aria-label="Ton profil">
         <div className="profile-head">
-          <button className="btn btn-ghost" type="button" onClick={onBack}>
-            Retour
-          </button>
+          {onBack && (
+            <button className="nav-back" type="button" onClick={onBack}>
+              Retour
+            </button>
+          )}
           <div className="profile-identity">
             <Avatar className="account-avatar" name={label} image={session?.user?.image} />
             <div className="meta">
@@ -192,6 +195,11 @@ export default function Profile({ onBack, onDisplayName }: Props) {
               {session?.user?.email && <span>{session.user.email}</span>}
             </div>
           </div>
+          {onSignOut && (
+            <button className="text-action" type="button" onClick={onSignOut}>
+              Déconnexion
+            </button>
+          )}
         </div>
         <fieldset className="avatar-picker" disabled={avatarBusy}>
           <legend>Avatar</legend>
@@ -700,7 +708,7 @@ export function GameDetail({
   return (
     <div className="profile profile-detail">
       <div className="profile-head">
-        <button className="btn btn-ghost" type="button" onClick={onBack}>
+        <button className="nav-back" type="button" onClick={onBack}>
           Parties
         </button>
         <h1>{game.solo ? "Partie solo" : "Partie à plusieurs"}</h1>
