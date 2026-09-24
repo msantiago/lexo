@@ -64,11 +64,10 @@ export function notifyContact(entry: { kind: "bug" | "idea"; name: string; email
   notifyNtfy(title, body);
 }
 
-export function notifyRoomCreated(room: { code: string; solo: boolean; hostName: string }) {
-  const title = room.solo ? "Nouvelle partie solo Lexo" : "Nouveau salon Lexo";
-  const body = room.solo
-    ? `${room.hostName} a lancé une partie solo (${room.code})`
-    : `${room.hostName} a créé le salon ${room.code}`;
+export function notifyUserRegistered(user: { name: string; email: string }) {
+  const title = "Nouvel utilisateur Lexo";
+  const name = user.name.trim() || "Sans pseudo";
+  const body = `${name} <${user.email}>`;
   notifyTelegram(title, body);
   notifyNtfy(title, body);
 }
