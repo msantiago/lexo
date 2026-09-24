@@ -1,4 +1,5 @@
 import type { Cell, RoomView } from "@shared/types";
+import { BadgeButton } from "../components/BadgeDialog";
 import WordTables, { PossibleWords } from "../components/WordTables";
 import LeaveButton from "../components/LeaveButton";
 import RoundChat from "../components/RoundChat";
@@ -47,9 +48,11 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
         {room.you.earnedBadges.length > 0 && (
           <ul className="earned-badges">
             {room.you.earnedBadges.map((badge) => (
-              <li key={badge.id} className="earned-badge" title={badge.description}>
-                <span aria-hidden>{badge.icon}</span>
-                <strong>{badge.title}</strong>
+              <li key={badge.id}>
+                <BadgeButton badge={badge} className="earned-badge">
+                  <span aria-hidden>{badge.icon}</span>
+                  <strong>{badge.title}</strong>
+                </BadgeButton>
               </li>
             ))}
           </ul>

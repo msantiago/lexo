@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { ChatMessage, RoomView } from "@shared/types";
+import { BadgeButton } from "./BadgeDialog";
 import { socket } from "../socket";
 
 export default function RoundChat({ room }: { room: RoomView }) {
@@ -79,7 +80,10 @@ function ChatLine({ message, youId }: { message: ChatMessage; youId: string }) {
         </span>
         <span>
           {mine ? "Tu as débloqué" : `${message.name} a débloqué`} le badge{" "}
-          <span aria-hidden>{message.badge.icon}</span> <strong>{message.badge.title}</strong>
+          <BadgeButton badge={message.badge} className="chat-badge-link">
+            <span aria-hidden>{message.badge.icon}</span>
+            <strong>{message.badge.title}</strong>
+          </BadgeButton>
         </span>
       </p>
     );
