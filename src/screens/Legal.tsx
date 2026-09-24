@@ -255,7 +255,8 @@ export function Privacy() {
         L’hébergement du serveur et les copies de sauvegarde techniques, s’il y en a, sont
         strictement nécessaires au fonctionnement du service. Le texte d’un message de contact est
         conservé sur le serveur Lexo. S’ils sont configurés, les canaux d’alerte de l’éditeur
-        (Telegram, ntfy) en reçoivent une copie.
+        (Telegram, ntfy) reçoivent une copie des messages de contact, ainsi que le pseudo et
+        l’e-mail à la création d’un compte.
       </p>
 
       <h2>Durée de conservation</h2>
