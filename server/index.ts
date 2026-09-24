@@ -11,6 +11,7 @@ import type { GameSettings } from "../shared/types.ts";
 import { isAdminUser } from "./admin.ts";
 import { auth, authProviders, findAuthUser, migrateAuth, sessionFromHeaders } from "./auth.ts";
 import { buildDirectory, playFor } from "./directory.ts";
+import { clientIp, submitContact } from "./contact.ts";
 import { defineWord, normalizeDefineWord } from "./define.ts";
 import { dictionary } from "./dictionary.ts";
 import {
@@ -169,6 +170,21 @@ app.get("/api/me/games/:id", async (req, res) => {
     return;
   }
   res.json(game);
+});
+
+app.post("/api/contact", async (req, res) => {
+  try {
+    const session = await sessionFromHeaders(req.headers);
+    const result = submitContact(req.body, clientIp(req), session?.user?.id ?? null);
+    if ("error" in result) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.status(201).json({ ok: true });
+  } catch (err) {
+    console.error("Contact impossible :", err instanceof Error ? err.message : err);
+    res.status(500).json({ error: "Envoi impossible pour le moment." });
+  }
 });
 
 app.get("/api/define/:word", async (req, res) => {

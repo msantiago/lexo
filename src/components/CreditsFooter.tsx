@@ -1,5 +1,5 @@
 import { version } from "../../package.json";
-import { CREDITS_PATH, PRIVACY_PATH, TERMS_PATH } from "../lib/nav";
+import { CONTACT_PATH, CREDITS_PATH, PRIVACY_PATH, TERMS_PATH } from "../lib/nav";
 
 export default function CreditsFooter() {
   return (
@@ -8,6 +8,7 @@ export default function CreditsFooter() {
         Créé par Marc-Antoine Santiago — septembre 2026 - v{version}
       </p>
       <nav className="legal-links">
+        <a href={CONTACT_PATH}>Contact</a>
         <a href={CREDITS_PATH}>Crédits</a>
         <a href={PRIVACY_PATH}>Confidentialité</a>
         <a href={TERMS_PATH}>Conditions d’utilisation</a>

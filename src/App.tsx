@@ -3,11 +3,22 @@ import { AnimatePresence, motion } from "framer-motion";
 import type { GameSettings, RoomView } from "@shared/types";
 import CreditsFooter from "./components/CreditsFooter";
 import Home from "./screens/Home";
+import Auth from "./screens/Auth";
+import Contact from "./screens/Contact";
 import { Credits, Privacy, Terms } from "./screens/Legal";
 import Lobby from "./screens/Lobby";
 import Play from "./screens/Play";
 import Results from "./screens/Results";
-import { goHome as leaveInfo, isCreditsPath, isLegalPath, isPrivacyPath, isTermsPath } from "./lib/nav";
+import {
+  goHome as leaveInfo,
+  isAuthPath,
+  isContactPath,
+  isCreditsPath,
+  isLegalPath,
+  isPrivacyPath,
+  isSignUpPath,
+  isTermsPath,
+} from "./lib/nav";
 import { socket } from "./socket";
 import { installAudioUnlock } from "./lib/sfx";
 
@@ -186,7 +197,11 @@ export default function App() {
           onWatch={(userId) => socket.emit("room:watch", { userId, name })}
           onCloseRoom={closeRoom}
           info={
-            isCreditsPath(path) ? (
+            isAuthPath(path) ? (
+              <Auth mode={isSignUpPath(path) ? "signup" : "signin"} onDisplayName={setName} />
+            ) : isContactPath(path) ? (
+              <Contact />
+            ) : isCreditsPath(path) ? (
               <Credits />
             ) : isPrivacyPath(path) ? (
               <Privacy />

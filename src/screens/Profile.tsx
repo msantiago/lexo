@@ -6,6 +6,7 @@ import type {
   WordFreq,
   WordStatsPayload,
 } from "@shared/account";
+import type { RoundSummary, SharedWord, SummaryWord, WordRecap } from "@shared/types";
 import { BADGE_CATEGORY_LABELS, type BadgeCategory, type BadgeView } from "@shared/badges";
 import {
   AVATAR_PRESETS,
@@ -19,6 +20,8 @@ import { difficultyLabel } from "@shared/rules";
 import type { Cell } from "@shared/types";
 import Avatar from "../components/Avatar";
 import AvatarCropper from "../components/AvatarCropper";
+import type { Crumb } from "../components/Breadcrumb";
+import WordTables, { PossibleWords } from "../components/WordTables";
 import WordLink from "../components/WordLink";
 import { authClient, displayNameFromUser, sanitizePseudo } from "../lib/auth-client";
 import { loadImageFile } from "../lib/crop-avatar";
@@ -29,9 +32,11 @@ type Props = {
   onBack?: () => void;
   onDisplayName: (name: string) => void;
   onSignOut?: () => void;
+  onTrail?: (crumbs: Crumb[]) => void;
+  resetRequest?: number;
 };
 
-export default function Profile({ onBack, onDisplayName, onSignOut }: Props) {
+export default function Profile({ onBack, onDisplayName, onSignOut, onTrail, resetRequest = 0 }: Props) {
   const { data: session } = authClient.useSession();
   const [tab, setTab] = useState<Tab>("badges");
   const [profile, setProfile] = useState<ProfilePayload | null>(null);
@@ -44,6 +49,23 @@ export default function Profile({ onBack, onDisplayName, onSignOut }: Props) {
   const [hasPhoto, setHasPhoto] = useState(false);
   const [cropImage, setCropImage] = useState<HTMLImageElement | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    setGame(null);
+  }, [resetRequest]);
+
+  useEffect(() => {
+    if (!onTrail) return;
+    if (!game) {
+      onTrail([]);
+      return;
+    }
+    onTrail([
+      { label: "Compte", onClick: () => setGame(null) },
+      { label: game.solo ? "Partie solo" : "Partie à plusieurs" },
+    ]);
+    return () => onTrail([]);
+  }, [game, onTrail]);
+
   const label = displayNameFromUser(session?.user?.name, session?.user?.email);
   const avatarId = parseAvatarId(session?.user?.image);
   const userId = session?.user?.id;
@@ -174,7 +196,7 @@ export default function Profile({ onBack, onDisplayName, onSignOut }: Props) {
   };
 
   if (game) {
-    return <GameDetail game={game} onBack={() => setGame(null)} />;
+    return <GameDetail game={game} />;
   }
 
   const earnedCount = profile?.badges.filter((b) => b.earned).length ?? 0;
@@ -553,35 +575,39 @@ function WordRankList({
     return <p className="hint">Pas encore de mots.</p>;
   }
   return (
-    <ol className="word-rank">
-      {words.map((word, index) => (
-        <li key={word.key}>
-          <span className="word-rank-n">{index + 1}</span>
-          <span className="word-rank-word">
-            <WordLink word={word.display} />
-          </span>
-          <span className="word-rank-meta">
-            {mode === "count" && (
-              <>
-                {word.count}× · {word.letters} l.
-              </>
-            )}
-            {mode === "length" && (
-              <>
-                {word.letters} lettre{word.letters > 1 ? "s" : ""}
-                {word.count > 1 ? ` · ${word.count}×` : ""}
-              </>
-            )}
-            {mode === "points" && (
-              <>
-                {word.points} pt{word.points > 1 ? "s" : ""}
-                {word.count > 1 ? ` · ${word.count}×` : ""}
-              </>
-            )}
-          </span>
-        </li>
-      ))}
-    </ol>
+    <div className="recap-table-wrap">
+      <table className="recap-table rank-table">
+        <tbody>
+          {words.map((word, index) => (
+            <tr key={word.key}>
+              <td>{index + 1}</td>
+              <td>
+                <WordLink word={word.display} />
+              </td>
+              <td className="recap-pts">
+                {mode === "count" && (
+                  <>
+                    {word.count}× · {word.letters} l.
+                  </>
+                )}
+                {mode === "length" && (
+                  <>
+                    {word.letters} lettre{word.letters > 1 ? "s" : ""}
+                    {word.count > 1 ? ` · ${word.count}×` : ""}
+                  </>
+                )}
+                {mode === "points" && (
+                  <>
+                    {word.points} pt{word.points > 1 ? "s" : ""}
+                    {word.count > 1 ? ` · ${word.count}×` : ""}
+                  </>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -698,31 +724,27 @@ export function GameList({
 
 export function GameDetail({
   game,
-  onBack,
   voice = "self",
 }: {
   game: GameHistoryDetail;
-  onBack: () => void;
   voice?: "self" | "public";
 }) {
   return (
     <div className="profile profile-detail">
       <div className="profile-head">
-        <button className="nav-back" type="button" onClick={onBack}>
-          Parties
-        </button>
         <h1>{game.solo ? "Partie solo" : "Partie à plusieurs"}</h1>
       </div>
       <p className="hint">
         {difficultyLabel(game.settings.difficulty)} · {game.rounds.length} manche
         {game.rounds.length > 1 ? "s" : ""}
       </p>
-      {game.rounds.map((round) => (
-        <section className="panel history-round" key={round.round}>
-          <h2>Manche {round.round}</h2>
-          <div className="history-round-body">
-            {round.grid && <MiniGrid grid={round.grid} />}
-            <div className="history-round-side">
+      {game.rounds.map((round) => {
+        const summary = round.summary ?? summaryFromRecap(round.recap);
+        return (
+          <section className="panel history-round" key={round.round}>
+            <h2>Manche {round.round}</h2>
+            <div className="history-round-body">
+              {round.grid && <MiniGrid grid={round.grid} />}
               <ul className="lobby-room-players scored">
                 {round.players.map((p) => (
                   <li className="lobby-room-player" key={`${round.round}-${p.name}-${p.color}`}>
@@ -737,36 +759,60 @@ export function GameDetail({
                   </li>
                 ))}
               </ul>
-              {round.recap.map((block) => (
-                <div key={block.playerId} className="recap-block">
-                  <div className="recap-player">
-                    <span className="avatar" style={{ background: block.color, width: 28, height: 28 }}>
-                      {block.name.slice(0, 1).toUpperCase()}
-                    </span>
-                    <strong>{block.name}</strong>
-                    <span className="muted">
-                      {block.words.length} mot{block.words.length > 1 ? "s" : ""} · {block.roundScore} pts
-                    </span>
-                  </div>
-                  <ul className="words recap-words">
-                    {block.words.length === 0 && <li className="muted">Aucun mot</li>}
-                    {block.words.map((w) => (
-                      <li key={w.key} className={w.shared ? "shared" : ""}>
-                        <span>
-                          <WordLink word={w.display} />
-                        </span>
-                        <em>{w.points}</em>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
             </div>
-          </div>
-        </section>
-      ))}
+            <div className="history-words">
+              <h3 className="recap-title">Synthèse de la manche</h3>
+              <WordTables summary={summary} />
+              {round.summary && <PossibleWords summary={round.summary} collapsible />}
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
+}
+
+function summaryFromRecap(recap: WordRecap[]): RoundSummary {
+  const unique: SummaryWord[] = [];
+  const shared = new Map<string, SharedWord>();
+  for (const block of recap) {
+    for (const word of block.words) {
+      if (word.shared) {
+        const existing = shared.get(word.key);
+        if (existing) {
+          existing.names.push({ name: block.name, color: block.color });
+          existing.playerIds.push(block.playerId);
+        } else {
+          shared.set(word.key, {
+            key: word.key,
+            display: word.display,
+            letters: word.letters,
+            names: [{ name: block.name, color: block.color }],
+            playerIds: [block.playerId],
+            likedBy: [],
+          });
+        }
+      } else {
+        unique.push({
+          key: `${block.playerId}-${word.key}`,
+          display: word.display,
+          letters: word.letters,
+          points: word.points,
+          playerId: block.playerId,
+          name: block.name,
+          color: block.color,
+          likedBy: [],
+        });
+      }
+    }
+  }
+  return {
+    unique,
+    shared: [...shared.values()],
+    rejected: [],
+    missed: [],
+    possibleCount: 0,
+  };
 }
 
 function MiniGrid({ grid }: { grid: Cell[] }) {

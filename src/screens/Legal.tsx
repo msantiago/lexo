@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 import { version } from "../../package.json";
-import { goHome, PRIVACY_PATH } from "../lib/nav";
+import { CONTACT_PATH, goHome, PRIVACY_PATH } from "../lib/nav";
 
-const UPDATED = "23 septembre 2026";
+const UPDATED = "24 septembre 2026";
+const PRIVACY_UPDATED = "24 septembre 2026";
 
 function LegalPage({
   title,
@@ -190,7 +191,7 @@ export function Credits() {
 
 export function Privacy() {
   return (
-    <LegalPage title="Politique de confidentialité">
+    <LegalPage title="Politique de confidentialité" updated={PRIVACY_UPDATED}>
       <p>
         Lexo est un jeu de lettres en ligne édité par Marc-Antoine Santiago. Cette page explique
         quelles données sont traitées quand tu joues, notamment si tu te connectes avec Google ou
@@ -200,8 +201,8 @@ export function Privacy() {
       <h2>Qui est responsable</h2>
       <p>
         Le responsable du traitement est Marc-Antoine Santiago, éditeur de Lexo. Pour toute
-        question ou demande relative à tes données, utilise le contact indiqué sur l’écran de
-        consentement Google, ou le nom affiché en bas de chaque page.
+        question ou demande relative à tes données, écris via la page{" "}
+        <a href={CONTACT_PATH}>Contact</a>.
       </p>
 
       <h2>Données collectées</h2>
@@ -224,6 +225,10 @@ export function Privacy() {
           <strong>Session</strong> : un cookie de session pour rester connecté, et le pseudo du
           compte mémorisé sur cet appareil.
         </li>
+        <li>
+          <strong>Contact</strong> : si tu écris via le formulaire, ton nom, ton e-mail et le texte
+          du message, pour pouvoir te répondre.
+        </li>
       </ul>
       <p>Lexo n’utilise pas de publicité, ni d’outil d’analyse d’audience tiers.</p>
 
@@ -232,7 +237,8 @@ export function Privacy() {
         <li>te permettre de jouer et de retrouver tes parties ;</li>
         <li>créer et sécuriser un compte, y compris via OAuth ;</li>
         <li>afficher ton pseudo, ton avatar, tes scores et tes badges ;</li>
-        <li>faire fonctionner les salons en temps réel.</li>
+        <li>faire fonctionner les salons en temps réel ;</li>
+        <li>lire et répondre aux bugs et aux idées envoyés par le formulaire de contact.</li>
       </ul>
       <p>
         La base légale est ton consentement (création de compte ou bouton « Continuer avec Google »)
@@ -247,7 +253,9 @@ export function Privacy() {
       </p>
       <p>
         L’hébergement du serveur et les copies de sauvegarde techniques, s’il y en a, sont
-        strictement nécessaires au fonctionnement du service.
+        strictement nécessaires au fonctionnement du service. Le texte d’un message de contact est
+        conservé sur le serveur Lexo. S’ils sont configurés, les canaux d’alerte de l’éditeur
+        (Telegram, ntfy) en reçoivent une copie.
       </p>
 
       <h2>Durée de conservation</h2>
@@ -255,6 +263,7 @@ export function Privacy() {
         Les données de compte, d’historique et de badges sont conservées tant que le compte existe.
         Les salons en cours disparaissent quand la partie se termine ou que le serveur les ferme. Un
         cookie de session expire au plus tard après 30 jours si tu as coché « se souvenir de moi ».
+        Les messages de contact sont conservés le temps de les traiter.
       </p>
 
       <h2>Tes droits</h2>
@@ -278,7 +287,7 @@ export function Privacy() {
       <h2>Mineurs</h2>
       <p>
         Lexo n’est pas destiné aux enfants de moins de 16 ans. Si un compte a été créé par erreur,
-        contacte l’éditeur pour le faire supprimer.
+        écris via la page <a href={CONTACT_PATH}>Contact</a> pour le faire supprimer.
       </p>
     </LegalPage>
   );
@@ -294,9 +303,14 @@ export function Terms() {
 
       <h2>Le service</h2>
       <p>
-        Lexo est un jeu de lettres en temps réel, proposé gratuitement. Pour jouer, crée un compte
-        (e-mail ou connexion Google et autres prestataires) : tes parties, tes stats et tes badges
-        sont alors conservés.
+        Lexo est un jeu de lettres en temps réel. Pour jouer, crée un compte (e-mail ou connexion
+        Google et autres prestataires) : tes parties, tes stats et tes badges sont alors conservés.
+      </p>
+      <p>
+        Pour le moment, l’application est proposée gratuitement. Cela peut évoluer vers un accès
+        freemium : une partie des fonctions resterait libre, et d’autres seraient réservées à un
+        accès premium. Si un accès payant est mis en place, il sera indiqué clairement avant toute
+        souscription.
       </p>
       <p>
         Le jeu, les salons et les classements fonctionnent « en l’état ». L’éditeur peut modifier,

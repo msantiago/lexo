@@ -57,6 +57,13 @@ function notifyNtfy(title: string, body: string) {
   });
 }
 
+export function notifyContact(entry: { kind: "bug" | "idea"; name: string; email: string; message: string }) {
+  const title = entry.kind === "bug" ? "Bug signalé sur Lexo" : "Idée proposée sur Lexo";
+  const body = `${entry.name} <${entry.email}>\n${entry.message}`;
+  notifyTelegram(title, body);
+  notifyNtfy(title, body);
+}
+
 export function notifyRoomCreated(room: { code: string; solo: boolean; hostName: string }) {
   const title = room.solo ? "Nouvelle partie solo Lexo" : "Nouveau salon Lexo";
   const body = room.solo

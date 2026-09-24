@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { GameHistoryDetail, GameHistoryItem, PublicProfile } from "@shared/account";
 import Avatar from "../components/Avatar";
+import type { Crumb } from "../components/Breadcrumb";
 import { WatchButton } from "../components/RoundActions";
 import { displayNameFromUser } from "../lib/auth-client";
 import { activityLabel, formatJoined } from "../lib/presence";
@@ -12,9 +13,10 @@ type Props = {
   userId: string;
   onBack: () => void;
   onWatch?: (userId: string) => void;
+  onTrail?: (crumbs: Crumb[]) => void;
 };
 
-export default function UserDetail({ userId, onBack, onWatch }: Props) {
+export default function UserDetail({ userId, onBack, onWatch, onTrail }: Props) {
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("badges");
@@ -66,11 +68,25 @@ export default function UserDetail({ userId, onBack, onWatch }: Props) {
     setGame((await res.json()) as GameHistoryDetail);
   };
 
+  const name = displayNameFromUser(profile?.name, null);
+
+  useEffect(() => {
+    if (!onTrail) return;
+    const crumbs: Crumb[] = [{ label: "Joueurs", onClick: onBack }];
+    if (game) {
+      crumbs.push({ label: name || "Joueur", onClick: () => setGame(null) });
+      crumbs.push({ label: game.solo ? "Partie solo" : "Partie à plusieurs" });
+    } else {
+      crumbs.push({ label: name || "Joueur" });
+    }
+    onTrail(crumbs);
+    return () => onTrail([]);
+  }, [onTrail, onBack, name, game]);
+
   if (game) {
-    return <GameDetail game={game} voice="public" onBack={() => setGame(null)} />;
+    return <GameDetail game={game} voice="public" />;
   }
 
-  const name = displayNameFromUser(profile?.name, null);
   const earnedCount = profile?.badges.filter((badge) => badge.earned).length ?? 0;
   const activity = profile ? activityLabel(profile.play, profile.online) : null;
   const joined = profile ? formatJoined(profile.createdAt) : "";
@@ -78,10 +94,6 @@ export default function UserDetail({ userId, onBack, onWatch }: Props) {
   return (
     <div className="profile">
       <section className="panel profile-hero" aria-label={name || "Joueur"}>
-        <button className="btn btn-gold back-chip" type="button" onClick={onBack}>
-          <BackIcon />
-          Joueurs
-        </button>
         <div className="profile-head">
           <div className="profile-identity">
             <Avatar
@@ -202,21 +214,6 @@ export default function UserDetail({ userId, onBack, onWatch }: Props) {
         </>
       )}
     </div>
-  );
-}
-
-function BackIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M15 5 8 12l7 7"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }
 
