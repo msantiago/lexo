@@ -214,6 +214,15 @@ export const auth = betterAuth({
     enabled: true,
     minPasswordLength: 8,
   },
+  account: {
+    accountLinking: {
+      enabled: true,
+      // Facebook ne renvoie pas de preuve d’e-mail, et Lexo ne vérifie pas les adresses.
+      // Sans ces deux réglages, un compte déjà créé avec le même e-mail renvoie account_not_linked.
+      trustedProviders: ["google", "apple", "facebook", "microsoft", "github", "discord"],
+      requireLocalEmailVerified: false,
+    },
+  },
   advanced: {
     database: {
       generateId: () => randomBytes(16).toString("hex"),

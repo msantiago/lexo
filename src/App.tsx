@@ -57,6 +57,15 @@ export default function App() {
     toastTimer.current = window.setTimeout(() => setToast(null), ms);
   };
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("error") !== "account_not_linked") return;
+    showToast("Un compte existe déjà avec cet e-mail. La connexion n’a pas pu y être rattachée.", 5000);
+    params.delete("error");
+    const search = params.toString();
+    window.history.replaceState({}, "", `${window.location.pathname}${search ? `?${search}` : ""}`);
+  }, []);
+
   const clearLocalSession = () => {
     pendingRejoin.current = null;
     sessionStorage.removeItem(SESSION_KEY);
