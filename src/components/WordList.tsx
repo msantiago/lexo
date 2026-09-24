@@ -13,32 +13,34 @@ export default function WordList({
   const total = words.reduce((sum, w) => sum + w.points, 0);
   return (
     <aside className="word-list" style={accent ? { borderColor: accent } : undefined}>
-      <h3>
-        {title ?? `Tes mots · ${words.length} · ${total} pts`}
-      </h3>
-      <ul className="words">
-        <AnimatePresence initial={false}>
-          {words.map((word) => (
-            <motion.li
-              layout
-              key={word.key}
-              className={word.shared ? "shared new" : "new"}
-              initial={{ opacity: 0, x: 28, scale: 0.86 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              transition={{ type: "spring", stiffness: 380, damping: 22 }}
-            >
-              <span>{word.display}</span>
-              <motion.em
-                key={word.points}
-                initial={{ scale: 1.5, color: "#6fdb9a" }}
-                animate={{ scale: 1 }}
-              >
-                {word.points}
-              </motion.em>
-            </motion.li>
-          ))}
-        </AnimatePresence>
-      </ul>
+      <h3>{title ?? `Tes mots · ${words.length} · ${total} pts`}</h3>
+      {words.length === 0 ? (
+        <p className="muted">Aucun mot pour l’instant.</p>
+      ) : (
+        <div className="recap-table-wrap word-live">
+          <table className="recap-table">
+            <tbody>
+              <AnimatePresence initial={false}>
+                {words.map((word) => (
+                  <motion.tr
+                    layout
+                    key={word.key}
+                    className={word.shared ? "shared" : undefined}
+                    initial={{ opacity: 0, x: 18 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ type: "spring", stiffness: 380, damping: 22 }}
+                  >
+                    <td>{word.display}</td>
+                    <motion.td className="recap-pts" key={word.points}>
+                      {word.points}
+                    </motion.td>
+                  </motion.tr>
+                ))}
+              </AnimatePresence>
+            </tbody>
+          </table>
+        </div>
+      )}
     </aside>
   );
 }

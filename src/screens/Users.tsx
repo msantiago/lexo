@@ -1,26 +1,32 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DirectoryUser } from "@shared/account";
 import Avatar from "../components/Avatar";
+import type { Crumb } from "../components/Breadcrumb";
 import { WatchButton } from "../components/RoundActions";
 import { displayNameFromUser } from "../lib/auth-client";
 import { activityLabel } from "../lib/presence";
 import UserDetail from "./UserDetail";
 
 type Filter = "all" | "online" | "playing";
+type SortKey = "name" | "status" | "points" | "games" | "words" | "wins";
+type SortDir = "asc" | "desc";
 
 type Props = {
   onBack?: () => void;
   onWatch?: (userId: string) => void;
   listRequest?: number;
+  onTrail?: (crumbs: Crumb[]) => void;
 };
 
-export default function Users({ onBack, onWatch, listRequest = 0 }: Props) {
+export default function Users({ onBack, onWatch, listRequest = 0, onTrail }: Props) {
   const [users, setUsers] = useState<DirectoryUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: "points", dir: "desc" });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const hasData = useRef(false);
+  const closePlayer = useCallback(() => setSelectedId(null), []);
 
   useEffect(() => {
     setSelectedId(null);
@@ -66,20 +72,38 @@ export default function Users({ onBack, onWatch, listRequest = 0 }: Props) {
 
   const visible = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("fr");
-    return (users ?? []).filter((user) => {
+    const list = (users ?? []).filter((user) => {
       if (filter === "online" && !user.online) return false;
       if (filter === "playing" && !user.play) return false;
       if (!needle) return true;
       return displayNameFromUser(user.name, null).toLocaleLowerCase("fr").includes(needle);
     });
-  }, [users, filter, query]);
+    const byName = (a: DirectoryUser, b: DirectoryUser) =>
+      displayNameFromUser(a.name, null).localeCompare(displayNameFromUser(b.name, null), "fr");
+    list.sort((a, b) => {
+      const primary = compareUsers(a, b, sort.key);
+      if (primary !== 0) return sort.dir === "asc" ? primary : -primary;
+      return byName(a, b);
+    });
+    return list;
+  }, [users, filter, query, sort]);
+
+  const chooseSort = (key: SortKey) => {
+    setSort((current) => {
+      if (current.key === key) {
+        return { key, dir: current.dir === "asc" ? "desc" : "asc" };
+      }
+      return { key, dir: key === "name" || key === "status" ? "asc" : "desc" };
+    });
+  };
 
   if (selectedId) {
     return (
       <UserDetail
         userId={selectedId}
-        onBack={() => setSelectedId(null)}
+        onBack={closePlayer}
         onWatch={onWatch}
+        onTrail={onTrail}
       />
     );
   }
@@ -146,12 +170,12 @@ export default function Users({ onBack, onWatch, listRequest = 0 }: Props) {
           <table className="player-table">
             <thead>
               <tr>
-                <th>Joueur</th>
-                <th className="col-wide">Statut</th>
-                <th className="col-wide num">Score</th>
-                <th className="col-wide num">Parties</th>
-                <th className="col-wide num">Mots</th>
-                <th className="col-wide num">Victoires</th>
+                <SortHeader label="Joueur" sortKey="name" sort={sort} onSort={chooseSort} />
+                <SortHeader label="Statut" sortKey="status" sort={sort} onSort={chooseSort} wide />
+                <SortHeader label="Score" sortKey="points" sort={sort} onSort={chooseSort} wide numeric />
+                <SortHeader label="Parties" sortKey="games" sort={sort} onSort={chooseSort} wide numeric />
+                <SortHeader label="Mots" sortKey="words" sort={sort} onSort={chooseSort} wide numeric />
+                <SortHeader label="Victoires" sortKey="wins" sort={sort} onSort={chooseSort} wide numeric />
                 <th className="col-wide col-action">
                   <span className="visually-hidden">Actions</span>
                 </th>
@@ -172,6 +196,59 @@ export default function Users({ onBack, onWatch, listRequest = 0 }: Props) {
       )}
     </div>
   );
+}
+
+function SortHeader({
+  label,
+  sortKey,
+  sort,
+  onSort,
+  wide,
+  numeric,
+}: {
+  label: string;
+  sortKey: SortKey;
+  sort: { key: SortKey; dir: SortDir };
+  onSort: (key: SortKey) => void;
+  wide?: boolean;
+  numeric?: boolean;
+}) {
+  const active = sort.key === sortKey;
+  return (
+    <th
+      className={`${wide ? "col-wide" : ""} ${numeric ? "num" : ""}`.trim()}
+      aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+    >
+      <button type="button" onClick={() => onSort(sortKey)}>
+        {label}
+        {active && <span aria-hidden="true">{sort.dir === "asc" ? "↑" : "↓"}</span>}
+      </button>
+    </th>
+  );
+}
+
+function compareUsers(a: DirectoryUser, b: DirectoryUser, key: SortKey): number {
+  switch (key) {
+    case "name":
+      return displayNameFromUser(a.name, null).localeCompare(displayNameFromUser(b.name, null), "fr");
+    case "status":
+      return presenceRank(a) - presenceRank(b);
+    case "points":
+      return a.stats.totalPoints - b.stats.totalPoints;
+    case "games":
+      return a.stats.gamesPlayed - b.stats.gamesPlayed;
+    case "words":
+      return a.stats.wordsFound - b.stats.wordsFound;
+    case "wins":
+      return a.stats.wins - b.stats.wins;
+  }
+}
+
+function presenceRank(user: DirectoryUser): number {
+  if (user.online && user.play) return 0;
+  if (user.online) return 1;
+  if (user.play) return 2;
+  return 3;
 }
 
 function FilterChip({

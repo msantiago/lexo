@@ -146,7 +146,31 @@ export function migrateStore() {
       earned_at INTEGER NOT NULL,
       PRIMARY KEY (user_id, badge_id)
     );
+    CREATE TABLE IF NOT EXISTS contact_messages (
+      id TEXT PRIMARY KEY,
+      created_at INTEGER NOT NULL,
+      kind TEXT NOT NULL,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      message TEXT NOT NULL,
+      user_id TEXT
+    );
   `);
+}
+
+export function saveContactMessage(entry: {
+  kind: "bug" | "idea";
+  name: string;
+  email: string;
+  message: string;
+  userId: string | null;
+}): string {
+  const id = makeId();
+  db.prepare(
+    `INSERT INTO contact_messages (id, created_at, kind, name, email, message, user_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run(id, Date.now(), entry.kind, entry.name, entry.email, entry.message, entry.userId);
+  return id;
 }
 
 function parseJson<T>(raw: string, fallback: T): T {

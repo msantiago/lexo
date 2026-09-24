@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { MAX_PLAYERS, foldPlayerName, type LobbyPlayer, type LobbyRoom } from "@shared/types";
 import { difficultyLabel } from "@shared/rules";
-import AccountPanel from "../components/AccountPanel";
+import Landing from "./Landing";
 import Avatar from "../components/Avatar";
+import Breadcrumb, { type Crumb } from "../components/Breadcrumb";
 import LeaveButton from "../components/LeaveButton";
 import { JoinButton, WatchButton } from "../components/RoundActions";
 import FloatingLetters from "../components/FloatingLetters";
@@ -41,8 +42,11 @@ export default function Home({
   onExitInfo,
 }: Props) {
   const [rooms, setRooms] = useState<LobbyRoom[]>([]);
-  const [page, setPage] = useState<"play" | "account" | "users">("play");
+  const [page, setPage] = useState<"landing" | "play" | "account" | "users">("play");
   const [usersListRequest, setUsersListRequest] = useState(0);
+  const [accountRequest, setAccountRequest] = useState(0);
+  const [trail, setTrail] = useState<Crumb[]>([]);
+  const onTrail = useCallback((crumbs: Crumb[]) => setTrail(crumbs), []);
   const { data: session, isPending } = authClient.useSession();
   const signedIn = Boolean(session?.user);
   const ready = signedIn && name.trim().length > 0;
@@ -62,9 +66,14 @@ export default function Home({
   }, []);
 
   const wide = Boolean(info) || page === "users" || (page === "account" && signedIn && !isPending);
-  const openTab = (next: "play" | "account" | "users") => {
+  const openTab = (next: "landing" | "play" | "account" | "users") => {
     if (info) onExitInfo?.();
     setPage(next);
+  };
+
+  const goAccueil = () => {
+    openTab("landing");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const signOut = async () => {
@@ -74,6 +83,7 @@ export default function Home({
   };
 
   const showApp = signedIn && !isPending;
+  const showLanding = !info && !isPending && (!showApp || page === "landing");
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [dockStuck, setDockStuck] = useState(false);
 
@@ -89,20 +99,25 @@ export default function Home({
   }, [showApp]);
 
   return (
-    <div className={`screen home ${showApp && wide ? "home-profile" : ""}`}>
+    <div className={`screen home ${showApp && wide ? "home-profile" : ""} ${showLanding ? "home-landing" : ""}`}>
       <FloatingLetters />
       <header className="home-brand">
-        <LexoLogo />
+        <button type="button" className="home-logo" onClick={goAccueil} aria-label="Accueil">
+          <LexoLogo />
+        </button>
         <p>Les mots sont sur la table</p>
       </header>
       {showApp && (
         <>
           <div ref={sentinelRef} className="dock-sentinel" aria-hidden="true" />
           <nav className={`dock${dockStuck ? " is-stuck" : ""}`} aria-label="Navigation">
-          <button type="button" className="dock-logo" onClick={() => openTab("play")} tabIndex={dockStuck ? 0 : -1}>
+          <button type="button" className="dock-logo" onClick={goAccueil} aria-label="Accueil" tabIndex={dockStuck ? 0 : -1}>
             <LexoLogo compact />
           </button>
           <div className="dock-tabs">
+            <DockTab current={!info && page === "landing"} onClick={goAccueil} label="Accueil">
+              <HomeIcon />
+            </DockTab>
             <DockTab current={!info && page === "play"} onClick={() => openTab("play")} label="Jouer">
               <DiceIcon />
             </DockTab>
@@ -118,13 +133,17 @@ export default function Home({
             </DockTab>
             <DockTab
               current={!info && page === "account"}
-              onClick={() => openTab("account")}
+              onClick={() => {
+                openTab("account");
+                setAccountRequest((request) => request + 1);
+              }}
               label="Compte"
             >
               <PersonIcon />
             </DockTab>
           </div>
         </nav>
+          {trail.length > 0 && <Breadcrumb items={trail} />}
         </>
       )}
       {info ? (
@@ -133,12 +152,19 @@ export default function Home({
         isPending ? (
           <p className="hint">Chargement…</p>
         ) : (
-          <AccountPanel admin={admin} onDisplayName={onName} />
+          <Landing />
         )
+      ) : page === "landing" ? (
+        <Landing name={name.trim()} />
       ) : page === "users" ? (
-        <Users listRequest={usersListRequest} onWatch={onWatch} />
+        <Users listRequest={usersListRequest} onWatch={onWatch} onTrail={onTrail} />
       ) : page === "account" ? (
-        <Profile onDisplayName={onName} onSignOut={() => void signOut()} />
+        <Profile
+          onDisplayName={onName}
+          onSignOut={() => void signOut()}
+          onTrail={onTrail}
+          resetRequest={accountRequest}
+        />
       ) : (
         <>
           <div className="play-launch">
@@ -402,6 +428,29 @@ function RoomActions({
         />
       )}
     </div>
+  );
+}
+
+function HomeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path
+        d="M4 11.2 12 4.5l8 6.7"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M7.2 10.2V19h9.6v-8.8"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 

@@ -25,11 +25,13 @@ type Props = {
   admin?: boolean;
   onDisplayName: (name: string) => void;
   onOpenProfile?: () => void;
+  initialMode?: Mode;
+  lead?: string | null;
 };
 
-export default function AccountPanel({ admin, onDisplayName, onOpenProfile }: Props) {
+export default function AccountPanel({ admin, onDisplayName, onOpenProfile, initialMode, lead }: Props) {
   const { data: session, isPending } = authClient.useSession();
-  const [mode, setMode] = useState<Mode>("signin");
+  const [mode, setMode] = useState<Mode>(initialMode ?? "signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -37,6 +39,10 @@ export default function AccountPanel({ admin, onDisplayName, onOpenProfile }: Pr
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [providers, setProviders] = useState<AuthProviders>(EMPTY_PROVIDERS);
+
+  useEffect(() => {
+    if (initialMode) setMode(initialMode);
+  }, [initialMode]);
 
   useEffect(() => {
     fetch("/api/auth-config")
@@ -137,7 +143,11 @@ export default function AccountPanel({ admin, onDisplayName, onOpenProfile }: Pr
 
   return (
     <section className="panel account-panel">
-      <p className="hint">Un compte est nécessaire pour créer un salon ou lancer une partie.</p>
+      {lead !== null && (
+        <p className="hint">
+          {lead ?? "Un compte est nécessaire pour créer un salon ou lancer une partie."}
+        </p>
+      )}
       <div className="account-tabs" role="tablist">
         <button
           type="button"
