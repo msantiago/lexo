@@ -20,6 +20,7 @@ import {
   type WordRecap,
   type WordSubmitResult,
 } from "../shared/types.ts";
+import { COUNTDOWN_MS, roundEndsAt } from "../shared/countdown.ts";
 import { isValidPath, pathToWord, wordPoints } from "../shared/dice.ts";
 import { addCustomWord, lookupWord } from "./dictionary.ts";
 import { findAllWords, rollPlayableGrid } from "./solver.ts";
@@ -965,7 +966,7 @@ async function beginRound(room: Room) {
   room.likes = new Map();
   room.traces = new Map();
   room.startedAt = Date.now();
-  room.endsAt = room.startedAt + room.settings.durationSec * 1000;
+  room.endsAt = roundEndsAt(room.startedAt, room.settings.durationSec * 1000);
   for (const p of room.players) {
     p.words = [];
     p.roundScore = 0;
@@ -973,7 +974,7 @@ async function beginRound(room: Room) {
   }
   room.timer = setTimeout(
     () => finishRound(room),
-    room.settings.durationSec * 1000 + 50,
+    COUNTDOWN_MS + room.settings.durationSec * 1000 + 50,
   );
   emitState(room);
 }
@@ -1068,6 +1069,9 @@ export function setPlayerTrace(socketId: string, cells: unknown) {
 export function submitWord(socketId: string, cells: number[]): WordSubmitResult {
   const room = getRoomBySocket(socketId);
   if (!room || room.phase !== "playing" || !room.grid) {
+    return { ok: false, reason: "phase" };
+  }
+  if (room.startedAt && Date.now() < room.startedAt + COUNTDOWN_MS) {
     return { ok: false, reason: "phase" };
   }
   if (room.endsAt && Date.now() >= room.endsAt) {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Cell } from "@shared/types";
 import { playLetterBack, playLetterSelect } from "../lib/sfx";
 
@@ -9,6 +9,8 @@ type Props = {
   path: number[];
   flash: Flash;
   disabled?: boolean;
+  shuffling?: boolean;
+  revealing?: boolean;
   accent?: string;
   onPathChange: (path: number[]) => void;
   onSubmit: (path: number[]) => void;
@@ -44,16 +46,114 @@ function cellFromPoint(x: number, y: number, dice: HTMLElement[]): number | null
   return best ? best.index : null;
 }
 
+const SHUFFLE_FACES = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "Qu"];
+
+function nextGap(kind: number) {
+  if (kind < 0.34) return 240 + Math.random() * 220;
+  if (kind < 0.67) return 360 + Math.random() * 300;
+  return 500 + Math.random() * 460;
+}
+
+/** Uneven instants across the last second, then shuffled so the dice settle in a random order. */
+function revealDelays(count: number): number[] {
+  const weights = Array.from({ length: count }, () => 0.35 + Math.random());
+  const sum = weights.reduce((total, weight) => total + weight, 0);
+  let cursor = Math.random() * 70;
+  const times = weights.map((weight) => {
+    const at = cursor;
+    cursor += (weight / sum) * 760;
+    return Math.round(at);
+  });
+  for (let i = times.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const swap = times[i];
+    times[i] = times[j];
+    times[j] = swap;
+  }
+  return times;
+}
+
+function DieTile({
+  cell,
+  index,
+  shuffling,
+  settleDelay,
+  active,
+  current,
+  flash,
+}: {
+  cell: Cell;
+  index: number;
+  shuffling: boolean;
+  settleDelay: number | null;
+  active: boolean;
+  current: boolean;
+  flash: Flash;
+}) {
+  const [face, setFace] = useState(cell.display);
+  const [settled, setSettled] = useState(false);
+  const kind = useRef(Math.random());
+
+  useEffect(() => {
+    if (!shuffling) return;
+    setSettled(false);
+    let timer = 0;
+    let lockTimer = 0;
+    const roll = () => {
+      setFace(SHUFFLE_FACES[Math.floor(Math.random() * SHUFFLE_FACES.length)]);
+      timer = window.setTimeout(roll, nextGap(kind.current));
+    };
+    const start = window.setTimeout(roll, Math.random() * 280);
+    if (settleDelay != null) {
+      lockTimer = window.setTimeout(() => {
+        window.clearTimeout(start);
+        window.clearTimeout(timer);
+        setSettled(true);
+      }, settleDelay);
+    }
+    return () => {
+      window.clearTimeout(start);
+      window.clearTimeout(timer);
+      window.clearTimeout(lockTimer);
+    };
+  }, [shuffling, settleDelay]);
+
+  const shown = !shuffling || settled ? cell.display : face;
+  const spinning = shuffling && !settled;
+  return (
+    <div
+      data-cell={index}
+      className={[
+        "die",
+        spinning ? "is-spinning" : "",
+        !shuffling && cell.letter === "QU" ? "qu" : "",
+        active ? "active" : "",
+        current ? "current" : "",
+        flash && active ? flash : "",
+      ].join(" ")}
+    >
+      <span className={`die-face${shown === "Qu" ? " qu" : ""}`} style={{ transform: `rotate(${cell.rotation}deg)` }}>
+        {shown}
+      </span>
+    </div>
+  );
+}
+
 export default function Board({
   grid,
   path,
   flash,
   disabled,
+  shuffling = false,
+  revealing = false,
   accent,
   onPathChange,
   onSubmit,
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
+  const revealPlan = useRef<number[] | null>(null);
+  if (!shuffling) revealPlan.current = null;
+  if (revealing && shuffling && revealPlan.current == null) revealPlan.current = revealDelays(grid.length);
   const drawing = useRef(false);
   const pathRef = useRef(path);
   const disabledRef = useRef(disabled);
@@ -158,22 +258,16 @@ export default function Board({
     <div ref={wrapRef} className="board-wrap" style={accent ? { ["--path-accent" as string]: accent } : undefined}>
       <div className="board">
         {grid.map((cell, i) => (
-          <div
+          <DieTile
             key={i}
-            data-cell={i}
-            className={[
-              "die",
-              cell.letter === "QU" ? "qu" : "",
-              path.includes(i) ? "active" : "",
-              path[path.length - 1] === i ? "current" : "",
-              flash && path.includes(i) ? flash : "",
-            ].join(" ")}
-            style={{ animationDelay: `${i * 32}ms` }}
-          >
-            <span className="die-face" style={{ transform: `rotate(${cell.rotation}deg)` }}>
-              {cell.display}
-            </span>
-          </div>
+            cell={cell}
+            index={i}
+            shuffling={shuffling}
+            settleDelay={revealing ? (revealPlan.current?.[i] ?? null) : null}
+            active={path.includes(i)}
+            current={path[path.length - 1] === i}
+            flash={flash}
+          />
         ))}
       </div>
       <svg className="board-lines" viewBox="0 0 100 100" preserveAspectRatio="none">
