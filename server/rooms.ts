@@ -4,7 +4,6 @@ import {
   DEFAULT_SETTINGS,
   MAX_PLAYERS,
   PLAYER_COLORS,
-  REROLL_WINDOW_MS,
   foldPlayerName,
   type Cell,
   type ChatMessage,
@@ -12,7 +11,6 @@ import {
   type GameSettings,
   type Phase,
   type PlayerPublic,
-  type RerollView,
   type RejectedWord,
   type PossibleWord,
   type RoundSummary,
@@ -77,8 +75,6 @@ type Room = {
   possibleWords: PossibleWord[];
   possibleCount: number;
   timer: ReturnType<typeof setTimeout> | null;
-  rerollVotes: Set<string>;
-  rerollWindowTimer: ReturnType<typeof setTimeout> | null;
   chat: ChatMessage[];
   likes: Map<string, Set<string>>;
   observers: Observer[];
@@ -364,25 +360,6 @@ function isSolo(room: Room) {
   return room.players.length === 1;
 }
 
-function rerollWindowOpen(room: Room) {
-  if (!room.startedAt) return false;
-  return Date.now() - room.startedAt < REROLL_WINDOW_MS;
-}
-
-function rerollView(room: Room, playerId: string): RerollView | null {
-  if (room.phase !== "playing") return null;
-  const solo = isSolo(room);
-  const open = solo || rerollWindowOpen(room);
-  return {
-    solo,
-    canVote: open,
-    youVoted: room.rerollVotes.has(playerId),
-    voterIds: [...room.rerollVotes],
-    needed: Math.max(1, room.players.filter(isConnected).length),
-    windowEndsAt: solo || !room.startedAt ? null : room.startedAt + REROLL_WINDOW_MS,
-  };
-}
-
 export function viewFor(room: Room, viewerId: string, observing = false): RoomView {
   const you = observing ? undefined : room.players.find((p) => p.id === viewerId);
   return {
@@ -411,7 +388,6 @@ export function viewFor(room: Room, viewerId: string, observing = false): RoomVi
     },
     recap: recap(room),
     summary: roundSummary(room),
-    reroll: observing ? null : rerollView(room, viewerId),
     chat: room.chat ?? [],
   };
 }
@@ -533,16 +509,8 @@ function clearTimer(room: Room) {
   }
 }
 
-function clearRerollTimer(room: Room) {
-  if (room.rerollWindowTimer) {
-    clearTimeout(room.rerollWindowTimer);
-    room.rerollWindowTimer = null;
-  }
-}
-
 function finishRound(room: Room) {
   clearTimer(room);
-  clearRerollTimer(room);
   if (room.phase !== "playing") return;
   room.phase = "results";
   room.endsAt = Date.now();
@@ -564,7 +532,6 @@ function finishRound(room: Room) {
 
 function destroyRoom(room: Room) {
   clearTimer(room);
-  clearRerollTimer(room);
   broadcast(room, "observer:closed");
   for (const player of room.players) {
     if (player.socketId) socketRoom.delete(player.socketId);
@@ -779,8 +746,6 @@ export function createRoom(socketId: string, name: string, solo = false, userId:
     possibleWords: [],
     possibleCount: 0,
     timer: null,
-    rerollVotes: new Set(),
-    rerollWindowTimer: null,
     chat: [],
     likes: new Map(),
     observers: [],
@@ -900,7 +865,6 @@ function removeObserver(room: Room, observer: Observer) {
 function removePlayer(room: Room, player: Player) {
   if (player.socketId) socketRoom.delete(player.socketId);
   room.players = room.players.filter((p) => p.id !== player.id);
-  room.rerollVotes.delete(player.id);
   room.traces.delete(player.id);
   if (room.players.length === 0) {
     destroyRoom(room);
@@ -985,11 +949,10 @@ export function updateSettings(socketId: string, settings: Partial<GameSettings>
   return { ok: true as const };
 }
 
-function beginRound(room: Room, incrementRound: boolean) {
+function beginRound(room: Room) {
   clearTimer(room);
-  clearRerollTimer(room);
   room.phase = "playing";
-  if (incrementRound) room.round += 1;
+  room.round += 1;
   const dealt = rollPlayableGrid(room.settings);
   room.grid = dealt.grid;
   room.possibleWords = dealt.words;
@@ -997,7 +960,6 @@ function beginRound(room: Room, incrementRound: boolean) {
   room.foundBy = new Map();
   room.rejected = new Map();
   room.missed = [];
-  room.rerollVotes = new Set();
   room.likes = new Map();
   room.traces = new Map();
   room.startedAt = Date.now();
@@ -1011,13 +973,6 @@ function beginRound(room: Room, incrementRound: boolean) {
     () => finishRound(room),
     room.settings.durationSec * 1000 + 50,
   );
-  if (!isSolo(room)) {
-    room.rerollWindowTimer = setTimeout(() => {
-      room.rerollVotes = new Set();
-      room.rerollWindowTimer = null;
-      if (room.phase === "playing") emitState(room);
-    }, REROLL_WINDOW_MS);
-  }
   emitState(room);
 }
 
@@ -1031,35 +986,7 @@ export function startGame(socketId: string) {
   if (room.phase === "playing") {
     return { error: "La manche est déjà lancée" as const };
   }
-  beginRound(room, true);
-  return { ok: true as const };
-}
-
-export function voteReroll(socketId: string) {
-  const room = getRoomBySocket(socketId);
-  if (!room || room.phase !== "playing") {
-    return { error: "Pas de manche en cours" as const };
-  }
-  const player = room.players.find((p) => p.socketId === socketId);
-  if (!player) return { error: "Pas dans un salon" as const };
-
-  if (isSolo(room)) {
-    beginRound(room, false);
-    return { ok: true as const };
-  }
-
-  if (!rerollWindowOpen(room)) {
-    return { error: "Trop tard : seulement les 15 premières secondes" as const };
-  }
-
-  room.rerollVotes.add(player.id);
-  const online = room.players.filter(isConnected);
-  const unanimous = online.length > 0 && online.every((p) => room.rerollVotes.has(p.id));
-  if (unanimous) {
-    beginRound(room, false);
-    return { ok: true as const };
-  }
-  emitState(room);
+  beginRound(room);
   return { ok: true as const };
 }
 

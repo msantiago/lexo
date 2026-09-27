@@ -180,17 +180,6 @@ export type RejectedWord = {
   added: boolean;
 };
 
-export const REROLL_WINDOW_MS = 15_000;
-
-export type RerollView = {
-  solo: boolean;
-  canVote: boolean;
-  youVoted: boolean;
-  voterIds: string[];
-  needed: number;
-  windowEndsAt: number | null;
-};
-
 export type RoomView = {
   code: string;
   hostId: string;
@@ -210,7 +199,6 @@ export type RoomView = {
   };
   recap: WordRecap[] | null;
   summary: RoundSummary | null;
-  reroll: RerollView | null;
   chat: ChatMessage[];
 };
 
