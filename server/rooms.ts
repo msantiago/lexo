@@ -25,7 +25,6 @@ import {
 import { isValidPath, pathToWord, wordPoints } from "../shared/dice.ts";
 import { addCustomWord, lookupWord } from "./dictionary.ts";
 import { findAllWords, rollPlayableGrid } from "./solver.ts";
-import { notifyRoomCreated } from "./alert.ts";
 import { findAuthImages } from "./auth.ts";
 import { awardLexicographer, recordFinishedRound, type RoundSnapshot } from "./store.ts";
 
@@ -790,7 +789,6 @@ export function createRoom(socketId: string, name: string, solo = false, userId:
   rooms.set(code, room);
   socketRoom.set(socketId, code);
   notifyLobby();
-  notifyRoomCreated({ code: room.code, solo: room.solo, hostName: player.name });
   return { room, playerId: player.id, replacedSocketIds };
 }
 

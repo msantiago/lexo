@@ -11,6 +11,7 @@ import { fromNodeHeaders } from "better-auth/node";
 import Database from "better-sqlite3";
 import { importPKCS8, SignJWT } from "jose";
 import type { AuthProviders } from "../shared/account.ts";
+import { notifyUserRegistered } from "./alert.ts";
 import { awardWelcome } from "./store.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -247,6 +248,7 @@ export const auth = betterAuth({
       create: {
         after: async (user) => {
           awardWelcome(user.id);
+          notifyUserRegistered({ name: user.name, email: user.email });
         },
       },
     },
