@@ -27,7 +27,6 @@ export type ClientToServer = {
   "game:start": () => void;
   "game:word": (data: { cells: number[] }) => void;
   "game:trace": (data: { cells: number[] }) => void;
-  "game:reroll": () => void;
   "dict:add": (data: { key: string }) => void;
   "chat:send": (data: { text: string }) => void;
   "chat:like": (data: { key: string }) => void;

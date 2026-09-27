@@ -7,7 +7,6 @@ import {
 } from "@shared/dice";
 import type { RoomView, WordSubmitResult } from "@shared/types";
 import Board from "../components/Board";
-import RerollBar from "../components/RerollBar";
 import Scoreboard, { ScorePills } from "../components/Scoreboard";
 import Timer from "../components/Timer";
 import WordList from "../components/WordList";
@@ -377,9 +376,6 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
             />
             <ScoreBursts bursts={bursts} onDone={removeBurst} />
           </div>
-        )}
-        {room.reroll && !timeUp && !observing && (
-          <RerollBar reroll={room.reroll} players={room.players} now={now} deal={room.startedAt} />
         )}
         <div key={feedback?.id} className={`feedback ${feedback?.ok ? "ok" : ""}`}>
           {feedback?.text ?? ""}

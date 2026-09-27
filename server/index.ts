@@ -34,7 +34,6 @@ import {
   submitWord,
   updateSettings,
   viewFor,
-  voteReroll,
   adoptRejectedWord,
 } from "./rooms.ts";
 import { hasUserAvatar, parseAvatarDataUrl, readUserAvatar, saveUserAvatar } from "./avatars.ts";
@@ -379,11 +378,6 @@ io.on("connection", async (socket) => {
 
   socket.on("game:trace", ({ cells }: { cells?: number[] }) => {
     setPlayerTrace(socket.id, cells ?? []);
-  });
-
-  socket.on("game:reroll", () => {
-    const result = voteReroll(socket.id);
-    if (result && "error" in result) socket.emit("notice", { message: result.error });
   });
 
   socket.on("dict:add", ({ key }: { key?: string }) => {
