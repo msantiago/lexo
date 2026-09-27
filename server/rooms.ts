@@ -22,6 +22,7 @@ import {
 } from "../shared/types.ts";
 import { COUNTDOWN_MS, roundEndsAt } from "../shared/countdown.ts";
 import { isValidPath, pathToWord, wordPoints } from "../shared/dice.ts";
+import { joinNames, leadersByRoundScore } from "../shared/round.ts";
 import { addCustomWord, lookupWord } from "./dictionary.ts";
 import { findAllWords, rollPlayableGrid } from "./solver.ts";
 import { findAuthImages } from "./auth.ts";
@@ -255,18 +256,20 @@ function announceBadge(room: Room, player: Player, badge: BadgeDef) {
 
 function announceResultsChat(room: Room) {
   if (room.solo || isSolo(room)) return;
-  const ranked = [...room.players].sort(
-    (a, b) => b.roundScore - a.roundScore || b.totalScore - a.totalScore,
-  );
-  const winner = ranked[0];
+  const leaders = leadersByRoundScore(room.players);
+  const winner = leaders[0];
   if (winner) {
     const pts = `${winner.roundScore} pt${winner.roundScore > 1 ? "s" : ""}`;
+    const text =
+      leaders.length === 1
+        ? `${winner.name} gagne la manche ${room.round} (${pts}).`
+        : `${joinNames(leaders.map((player) => player.name))} sont ex æquo sur la manche ${room.round} (${pts}).`;
     pushChat(room, {
       kind: "system",
       playerId: null,
       name: "",
       color: "#e8b84a",
-      text: `${winner.name} gagne la manche ${room.round} (${pts}).`,
+      text,
     });
   }
   for (const player of room.players) {

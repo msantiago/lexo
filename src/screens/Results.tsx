@@ -1,3 +1,4 @@
+import { roundHeadline } from "@shared/round";
 import type { Cell, RoomView } from "@shared/types";
 import { BadgeButton } from "../components/BadgeDialog";
 import WordTables, { PossibleWords } from "../components/WordTables";
@@ -20,7 +21,6 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
   );
   const solo = room.players.length === 1;
   const you = room.players.find((p) => p.id === room.you.id);
-  const roundWinner = [...room.players].sort((a, b) => b.roundScore - a.roundScore)[0];
   const summary = room.summary;
 
   return (
@@ -28,13 +28,11 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
       <div className="results-head">
         <p className="times-up-label">Temps écoulé</p>
         <h1>
-          {room.observing
-            ? solo
+          {solo
+            ? room.observing
               ? `${room.players[0]?.name ?? "Solo"} a terminé`
-              : `${roundWinner?.name} gagne la manche`
-            : solo
-              ? "Bien joué !"
-              : `${roundWinner?.name} gagne la manche`}
+              : "Bien joué !"
+            : roundHeadline(room.players)}
         </h1>
         <p>
           {room.observing ? (

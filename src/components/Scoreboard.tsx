@@ -42,7 +42,7 @@ export default function Scoreboard({
   onToggleOtherScores,
 }: SharedProps) {
   const ranked = showOtherScores
-    ? [...players].sort((a, b) => b.roundScore - a.roundScore || b.totalScore - a.totalScore)
+    ? [...players].sort((a, b) => b.roundScore - a.roundScore)
     : [...players.filter((p) => p.id === youId), ...players.filter((p) => p.id !== youId)];
 
   return (
