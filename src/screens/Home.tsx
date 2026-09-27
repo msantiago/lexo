@@ -11,7 +11,10 @@ import LexoLogo from "../components/LexoLogo";
 import { unlockAudio } from "../lib/sfx";
 import { authClient, displayNameFromUser, refreshSocketAuth } from "../lib/auth-client";
 import { socket } from "../socket";
+import Daily from "./Daily";
 import Profile from "./Profile";
+import type { DailyOverview } from "@shared/daily";
+import NewBadge from "../components/NewBadge";
 import Users from "./Users";
 
 type Props = {
@@ -50,11 +53,31 @@ export default function Home({
   const { data: session, isPending } = authClient.useSession();
   const signedIn = Boolean(session?.user);
   const ready = signedIn && name.trim().length > 0;
+  const [daily, setDaily] = useState<DailyOverview | null>(null);
+  const [dailyOpen, setDailyOpen] = useState(false);
 
   useEffect(() => {
     if (!session?.user) return;
     onName(displayNameFromUser(session.user.name, session.user.email));
   }, [session?.user?.id, session?.user?.name, session?.user?.email, onName]);
+
+  useEffect(() => {
+    if (!signedIn) {
+      setDaily(null);
+      setDailyOpen(false);
+      return;
+    }
+    let cancelled = false;
+    fetch("/api/daily", { credentials: "include" })
+      .then(async (res) => (res.ok ? ((await res.json()) as DailyOverview) : null))
+      .then((data) => {
+        if (!cancelled && data) setDaily(data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [signedIn]);
 
   useEffect(() => {
     const onRooms = (next: LobbyRoom[]) => setRooms(next);
@@ -65,9 +88,10 @@ export default function Home({
     };
   }, []);
 
-  const wide = Boolean(info) || page === "users" || (page === "account" && signedIn && !isPending);
+  const wide = Boolean(info) || page === "users" || dailyOpen || (page === "account" && signedIn && !isPending);
   const openTab = (next: "landing" | "play" | "account" | "users") => {
     if (info) onExitInfo?.();
+    if (next !== "play") setDailyOpen(false);
     setPage(next);
   };
 
@@ -137,9 +161,13 @@ export default function Home({
                 openTab("account");
                 setAccountRequest((request) => request + 1);
               }}
-              label="Compte"
+              label={name.trim() || "Compte"}
             >
-              <PersonIcon />
+              <Avatar
+                className="dock-avatar"
+                name={name.trim() || "?"}
+                image={session?.user?.image}
+              />
             </DockTab>
           </div>
         </nav>
@@ -165,8 +193,28 @@ export default function Home({
           onTrail={onTrail}
           resetRequest={accountRequest}
         />
+      ) : dailyOpen && daily ? (
+        <Daily overview={daily} onOverview={setDaily} onBack={() => setDailyOpen(false)} onTrail={onTrail} />
       ) : (
         <>
+          {daily && (
+            <button
+              className={`daily-offer ${daily.played ? "done" : ""}`}
+              type="button"
+              onClick={() => setDailyOpen(true)}
+            >
+              <span className="daily-offer-title">
+                Lexo du jour <NewBadge />
+              </span>
+              <span>
+                {daily.played
+                  ? `${daily.score ?? 0} pts aujourd’hui · voir le palmarès`
+                  : daily.inProgress
+                    ? "Partie en cours · le temps continue"
+                    : "5 minutes · grille moyenne · une fois par jour"}
+              </span>
+            </button>
+          )}
           <div className="play-launch">
             <button
               className="btn btn-gold"
@@ -225,7 +273,7 @@ function DockTab({
   return (
     <button type="button" aria-current={current ? "page" : undefined} onClick={onClick}>
       {children}
-      {label}
+      <span className="dock-tab-label">{label}</span>
     </button>
   );
 }
@@ -476,11 +524,3 @@ function PeopleIcon() {
   );
 }
 
-function PersonIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden>
-      <circle cx="12" cy="9" r="2.6" fill="none" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M6 18.5c.8-2.8 2.8-4.2 6-4.2s5.2 1.4 6 4.2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}

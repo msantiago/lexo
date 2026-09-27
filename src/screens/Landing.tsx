@@ -37,6 +37,21 @@ const KEEPS = [
   },
 ];
 
+const DAILY = [
+  {
+    title: "Même grille",
+    text: "Tirée à minuit, difficulté moyenne, identique pour tout le monde.",
+  },
+  {
+    title: "Une fois",
+    text: "Cinq minutes. Pas de seconde partie dans la journée.",
+  },
+  {
+    title: "Le lendemain",
+    text: "Les solutions s’ouvrent, et le palmarès suit les joueurs au fil des jours.",
+  },
+];
+
 const RULES = [
   {
     title: "Le temps",
@@ -134,6 +149,27 @@ export default function Landing({ name }: Props) {
           <span>grilles différentes ! 🤯</span>
         </p>
       </aside>
+
+      <section className="landing-rules" aria-labelledby="landing-daily-title">
+        <div className="landing-rules-intro">
+          <h2 id="landing-daily-title">
+            Le Lexo du jour
+            <NewBadge />
+          </h2>
+          <p>
+            Chaque jour, une seule grille pour tout Lexo. Tu la joues une fois, puis tu compares
+            ton score aux autres.
+          </p>
+        </div>
+        <ul>
+          {DAILY.map((item) => (
+            <li key={item.title}>
+              <strong>{item.title}</strong>
+              <p>{item.text}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       <section className="landing-rules" aria-labelledby="landing-rules-title">
         <div className="landing-rules-intro">

@@ -128,6 +128,8 @@ export type SummaryWord = {
   name: string;
   color: string;
   likedBy: WordLike[];
+  /** Position dans la manche, du premier mot saisi au dernier. */
+  order?: number;
 };
 
 export type ChatMessage = {
@@ -155,6 +157,8 @@ export type SharedWord = {
   names: { name: string; color: string }[];
   playerIds: string[];
   likedBy: WordLike[];
+  /** Position dans la manche, du premier mot saisi au dernier. */
+  order?: number;
 };
 
 export type PossibleWord = {
@@ -178,6 +182,8 @@ export type RejectedWord = {
   letters: number;
   names: { name: string; color: string }[];
   added: boolean;
+  /** Position dans la manche, du premier mot saisi au dernier. */
+  order?: number;
 };
 
 export type RoomView = {

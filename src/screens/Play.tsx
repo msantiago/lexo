@@ -5,8 +5,10 @@ import {
   foldKey,
   pathToWord,
 } from "@shared/dice";
+import { countdownIndex, countdownRevealing, countdownShuffling } from "@shared/countdown";
 import type { RoomView, WordSubmitResult } from "@shared/types";
 import Board from "../components/Board";
+import CountdownGate from "../components/CountdownGate";
 import Scoreboard, { ScorePills } from "../components/Scoreboard";
 import Timer from "../components/Timer";
 import WordList from "../components/WordList";
@@ -80,7 +82,6 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
   const lockedRef = useRef(locked);
   pathRef.current = path;
   typedRef.current = typed;
-  lockedRef.current = locked || (room.endsAt !== null && Date.now() >= room.endsAt);
 
   useEffect(() => {
     setDrawPath([]);
@@ -262,9 +263,15 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [room.grid, room.startedAt, observing]);
 
-  const remaining = room.endsAt ? Math.max(0, room.endsAt - now) : 0;
+  const counting = room.startedAt != null && countdownIndex(room.startedAt, now) != null;
+  const remaining = counting
+    ? room.settings.durationSec * 1000
+    : room.endsAt
+      ? Math.max(0, room.endsAt - now)
+      : 0;
   const timeUp = remaining <= 0;
-  const frozen = locked || timeUp;
+  const frozen = locked || timeUp || counting;
+  lockedRef.current = frozen;
   const preview =
     room.grid && path.length ? pathToWord(room.grid, path).display : "";
 
@@ -360,20 +367,24 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
         </div>
         {room.grid && (
           <div className="board-burst-host">
-            <Board
-              key={room.startedAt ?? room.round}
-              grid={room.grid}
-              path={path}
-              flash={flash}
-              disabled={observing || frozen}
-              accent={observing ? watched?.color : undefined}
-              onPathChange={(p) => {
-                if (observing || lockedRef.current) return;
-                setTyped("");
-                setDrawPath(p);
-              }}
-              onSubmit={submit}
-            />
+            <CountdownGate startedAt={room.startedAt} now={now}>
+              <Board
+                key={room.startedAt ?? room.round}
+                grid={room.grid}
+                path={path}
+                flash={flash}
+                disabled={observing || frozen}
+                shuffling={room.startedAt != null && countdownShuffling(room.startedAt, now)}
+                revealing={room.startedAt != null && countdownRevealing(room.startedAt, now)}
+                accent={observing ? watched?.color : undefined}
+                onPathChange={(p) => {
+                  if (observing || lockedRef.current) return;
+                  setTyped("");
+                  setDrawPath(p);
+                }}
+                onSubmit={submit}
+              />
+            </CountdownGate>
             <ScoreBursts bursts={bursts} onDone={removeBurst} />
           </div>
         )}

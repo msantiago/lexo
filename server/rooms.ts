@@ -20,7 +20,9 @@ import {
   type WordRecap,
   type WordSubmitResult,
 } from "../shared/types.ts";
+import { COUNTDOWN_MS, roundEndsAt } from "../shared/countdown.ts";
 import { isValidPath, pathToWord, wordPoints } from "../shared/dice.ts";
+import { joinNames, leadersByRoundScore } from "../shared/round.ts";
 import { addCustomWord, lookupWord } from "./dictionary.ts";
 import { findAllWords, rollPlayableGrid } from "./solver.ts";
 import { findAuthImages } from "./auth.ts";
@@ -172,6 +174,7 @@ function roundSummary(room: Room): RoundSummary | null {
   if (room.phase !== "results") return null;
   const unique: RoundSummary["unique"] = [];
   const shared: SharedWord[] = [];
+  let foundOrder = 0;
   for (const [key, owners] of room.foundBy) {
     const sample = room.players.flatMap((p) => p.words.filter((w) => w.key === key))[0];
     if (!sample) continue;
@@ -188,6 +191,7 @@ function roundSummary(room: Room): RoundSummary | null {
         name: p.name,
         color: p.color,
         likedBy: likesFor(room, key),
+        order: foundOrder++,
       });
     } else {
       shared.push({
@@ -197,17 +201,19 @@ function roundSummary(room: Room): RoundSummary | null {
         names: people.map((p) => ({ name: p.name, color: p.color })),
         playerIds: people.map((p) => p.id),
         likedBy: likesFor(room, key),
+        order: foundOrder++,
       });
     }
   }
   unique.sort((a, b) => b.points - a.points || b.letters - a.letters);
   shared.sort((a, b) => b.letters - a.letters);
   const rejected: RejectedWord[] = [...room.rejected.entries()]
-    .map(([key, attempt]) => ({
+    .map(([key, attempt], index) => ({
       key,
       display: attempt.display,
       letters: attempt.letters,
       added: attempt.added,
+      order: index,
       names: room.players
         .filter((p) => attempt.playerIds.has(p.id))
         .map((p) => ({ name: p.name, color: p.color })),
@@ -254,18 +260,20 @@ function announceBadge(room: Room, player: Player, badge: BadgeDef) {
 
 function announceResultsChat(room: Room) {
   if (room.solo || isSolo(room)) return;
-  const ranked = [...room.players].sort(
-    (a, b) => b.roundScore - a.roundScore || b.totalScore - a.totalScore,
-  );
-  const winner = ranked[0];
+  const leaders = leadersByRoundScore(room.players);
+  const winner = leaders[0];
   if (winner) {
     const pts = `${winner.roundScore} pt${winner.roundScore > 1 ? "s" : ""}`;
+    const text =
+      leaders.length === 1
+        ? `${winner.name} gagne la manche ${room.round} (${pts}).`
+        : `${joinNames(leaders.map((player) => player.name))} sont ex æquo sur la manche ${room.round} (${pts}).`;
     pushChat(room, {
       kind: "system",
       playerId: null,
       name: "",
       color: "#e8b84a",
-      text: `${winner.name} gagne la manche ${room.round} (${pts}).`,
+      text,
     });
   }
   for (const player of room.players) {
@@ -934,6 +942,8 @@ export function leaveRoom(socketId: string, userId: string | null = null) {
   }
 }
 
+const rolling = new WeakSet<Room>();
+
 export function updateSettings(socketId: string, settings: Partial<GameSettings>) {
   const room = getRoomBySocket(socketId);
   if (!room) return { error: "Pas dans un salon" as const };
@@ -941,7 +951,7 @@ export function updateSettings(socketId: string, settings: Partial<GameSettings>
   if (!player || player.id !== room.hostId) {
     return { error: "Seul l'hôte peut changer les règles" as const };
   }
-  if (room.phase === "playing") {
+  if (room.phase === "playing" || rolling.has(room)) {
     return { error: "Impossible de changer les règles en cours de manche" as const };
   }
   room.settings = clampSettings(settings);
@@ -949,11 +959,11 @@ export function updateSettings(socketId: string, settings: Partial<GameSettings>
   return { ok: true as const };
 }
 
-function beginRound(room: Room) {
+async function beginRound(room: Room) {
   clearTimer(room);
+  const dealt = await rollPlayableGrid(room.settings);
   room.phase = "playing";
   room.round += 1;
-  const dealt = rollPlayableGrid(room.settings);
   room.grid = dealt.grid;
   room.possibleWords = dealt.words;
   room.possibleCount = dealt.words.length;
@@ -963,7 +973,7 @@ function beginRound(room: Room) {
   room.likes = new Map();
   room.traces = new Map();
   room.startedAt = Date.now();
-  room.endsAt = room.startedAt + room.settings.durationSec * 1000;
+  room.endsAt = roundEndsAt(room.startedAt, room.settings.durationSec * 1000);
   for (const p of room.players) {
     p.words = [];
     p.roundScore = 0;
@@ -971,22 +981,27 @@ function beginRound(room: Room) {
   }
   room.timer = setTimeout(
     () => finishRound(room),
-    room.settings.durationSec * 1000 + 50,
+    COUNTDOWN_MS + room.settings.durationSec * 1000 + 50,
   );
   emitState(room);
 }
 
-export function startGame(socketId: string) {
+export async function startGame(socketId: string) {
   const room = getRoomBySocket(socketId);
   if (!room) return { error: "Pas dans un salon" as const };
   const player = room.players.find((p) => p.socketId === socketId);
   if (!player || player.id !== room.hostId) {
     return { error: "Seul l'hôte peut lancer la manche" as const };
   }
-  if (room.phase === "playing") {
+  if (room.phase === "playing" || rolling.has(room)) {
     return { error: "La manche est déjà lancée" as const };
   }
-  beginRound(room);
+  rolling.add(room);
+  try {
+    await beginRound(room);
+  } finally {
+    rolling.delete(room);
+  }
   return { ok: true as const };
 }
 
@@ -1061,6 +1076,9 @@ export function setPlayerTrace(socketId: string, cells: unknown) {
 export function submitWord(socketId: string, cells: number[]): WordSubmitResult {
   const room = getRoomBySocket(socketId);
   if (!room || room.phase !== "playing" || !room.grid) {
+    return { ok: false, reason: "phase" };
+  }
+  if (room.startedAt && Date.now() < room.startedAt + COUNTDOWN_MS) {
     return { ok: false, reason: "phase" };
   }
   if (room.endsAt && Date.now() >= room.endsAt) {

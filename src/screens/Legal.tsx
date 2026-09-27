@@ -210,7 +210,8 @@ export function Privacy() {
       <ul>
         <li>
           <strong>Compte Lexo</strong> : adresse e-mail, mot de passe (stocké sous forme hachée,
-          jamais en clair), pseudo, et l’avatar que tu choisis (icône ou photo).
+          jamais en clair), pseudo, et l’avatar que tu choisis (icône ou photo). Le Lexo du jour
+          enregistre aussi ton score du jour et les mots que tu as trouvés, pour le palmarès.
         </li>
         <li>
           <strong>Connexion via Google, Apple, Facebook, Microsoft, GitHub ou Discord</strong> : le

@@ -5,11 +5,41 @@ import {
   type GameSettings,
   type PossibleWord,
 } from "../shared/types.ts";
-import { hasPrefix, lookupWord } from "./dictionary.ts";
+import { dictionary, lookupWord } from "./dictionary.ts";
 
 const ADJ: number[][] = Array.from({ length: 16 }, (_, i) => neighbors(i));
+const A_CODE = "A".charCodeAt(0);
 
-const MAX_ROLL_ATTEMPTS = 120;
+type TrieNode = {
+  kids: Array<TrieNode | undefined>;
+  key: string | null;
+};
+
+function buildTrie(): TrieNode {
+  const root: TrieNode = { kids: new Array(26), key: null };
+  for (const key of dictionary.keys()) {
+    let node = root;
+    for (let i = 0; i < key.length; i++) {
+      const code = key.charCodeAt(i) - A_CODE;
+      let child = node.kids[code];
+      if (!child) {
+        child = { kids: new Array(26), key: null };
+        node.kids[code] = child;
+      }
+      node = child;
+    }
+    node.key = key;
+  }
+  return root;
+}
+
+const TRIE = buildTrie();
+
+// À 5 lettres minimum, une grille dans la fourchette est rare : environ 1 sur
+// 60 en moyen, 1 sur 300 en facile, 1 sur 10 000 en très facile. On cherche
+// jusqu’à tomber dedans, au lieu de rendre la grille la moins éloignée.
+const MAX_ROLL_ATTEMPTS = 80_000;
+const YIELD_EVERY = 500;
 
 function bandFor(settings: GameSettings) {
   return DIFFICULTY_BANDS[settings.difficulty] ?? DIFFICULTY_BANDS.medium;
@@ -35,12 +65,21 @@ function betterCount(next: number, current: number, min: number, max: number) {
   return next > current;
 }
 
+function step(node: TrieNode, letter: string): TrieNode | undefined {
+  let next = node.kids[letter.charCodeAt(0) - A_CODE];
+  if (next && letter.length === 2) next = next.kids[letter.charCodeAt(1) - A_CODE];
+  return next;
+}
+
 function collectWords(grid: Cell[], settings: GameSettings): PossibleWord[] {
   const hits = new Map<string, PossibleWord>();
+  const seen = new Set<string>();
   const min = settings.minLetters;
 
-  const dfs = (index: number, used: number, key: string, letters: number) => {
-    if (letters >= min && !hits.has(key)) {
+  const dfs = (index: number, used: number, node: TrieNode, letters: number) => {
+    const key = node.key;
+    if (key && letters >= min && !seen.has(key)) {
+      seen.add(key);
       const found = lookupWord(key, settings);
       if (found.ok) {
         hits.set(key, {
@@ -53,16 +92,16 @@ function collectWords(grid: Cell[], settings: GameSettings): PossibleWord[] {
     }
     for (const next of ADJ[index]) {
       if (used & (1 << next)) continue;
-      const nextKey = key + grid[next].letter;
-      if (!hasPrefix(nextKey)) continue;
-      dfs(next, used | (1 << next), nextKey, letters + grid[next].letterCount);
+      const child = step(node, grid[next].letter);
+      if (!child) continue;
+      dfs(next, used | (1 << next), child, letters + grid[next].letterCount);
     }
   };
 
   for (let i = 0; i < 16; i++) {
-    const key = grid[i].letter;
-    if (!hasPrefix(key)) continue;
-    dfs(i, 1 << i, key, grid[i].letterCount);
+    const node = step(TRIE, grid[i].letter);
+    if (!node) continue;
+    dfs(i, 1 << i, node, grid[i].letterCount);
   }
 
   return [...hits.values()];
@@ -78,16 +117,24 @@ export function findAllWords(grid: Cell[], settings: GameSettings): PossibleWord
   return sortWords(collectWords(grid, settings));
 }
 
-export function rollPlayableGrid(settings: GameSettings): {
+function breathe(): Promise<void> {
+  return new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+}
+
+export async function rollPlayableGrid(settings: GameSettings): Promise<{
   grid: Cell[];
   words: PossibleWord[];
-} {
+}> {
   const { min, max } = bandFor(settings);
-  let bestGrid = rollGrid(settings.letterOrientation === "shuffle");
+  const shuffle = settings.letterOrientation === "shuffle";
+  let bestGrid = rollGrid(shuffle);
   let bestWords = collectWords(bestGrid, settings);
 
   for (let attempt = 1; attempt < MAX_ROLL_ATTEMPTS && !inBand(bestWords.length, min, max); attempt++) {
-    const grid = rollGrid(settings.letterOrientation === "shuffle");
+    if (attempt % YIELD_EVERY === 0) await breathe();
+    const grid = rollGrid(shuffle);
     const words = collectWords(grid, settings);
     if (betterCount(words.length, bestWords.length, min, max)) {
       bestGrid = grid;

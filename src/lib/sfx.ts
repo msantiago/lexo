@@ -128,6 +128,32 @@ const WAV = {
   ),
 };
 
+function dieTap(low: number, high: number) {
+  return wavUrl(
+    samples(0.24, [
+      { freq: low, start: 0, dur: 0.06, gain: 0.62 },
+      { freq: high, start: 0, dur: 0.18, gain: 0.48 },
+      { freq: high * 1.5, start: 0.012, dur: 0.08, gain: 0.2 },
+    ]),
+  );
+}
+
+const COUNT_WAV = [
+  dieTap(349.23, 523.25),
+  dieTap(392, 587.33),
+  dieTap(440, 659.25),
+  dieTap(493.88, 739.99),
+  dieTap(554.37, 880),
+  wavUrl(
+    samples(0.55, [
+      { freq: 523.25, start: 0, dur: 0.34, gain: 0.46 },
+      { freq: 659.25, start: 0.06, dur: 0.38, gain: 0.42 },
+      { freq: 783.99, start: 0.12, dur: 0.42, gain: 0.4 },
+      { freq: 1046.5, start: 0.18, dur: 0.36, gain: 0.34 },
+    ]),
+  ),
+];
+
 function makeHtml(src: string) {
   const el = new Audio(src);
   el.preload = "auto";
@@ -248,6 +274,23 @@ export function playStolenSound() {
     return;
   }
   playOsc(311.13, 0.3, 0.18, "triangle", 246.94);
+}
+
+let countAudio: HTMLAudioElement[] | null = null;
+
+export function playCountdownSound(step: number) {
+  warmHtml();
+  if (!countAudio) countAudio = COUNT_WAV.map(makeHtml);
+  const el = countAudio[Math.min(Math.max(step, 0), countAudio.length - 1)];
+  if (!el) return;
+  try {
+    el.currentTime = 0;
+    const play = el.play();
+    if (play) void play.catch(() => {});
+  } catch {
+    /* ignore */
+  }
+  haptic(step >= countAudio.length - 1 ? [12, 28, 16] : 8);
 }
 
 export function playLetterSelect(step: number) {
