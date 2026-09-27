@@ -37,6 +37,15 @@ import {
   adoptRejectedWord,
 } from "./rooms.ts";
 import { hasUserAvatar, parseAvatarDataUrl, readUserAvatar, saveUserAvatar } from "./avatars.ts";
+import {
+  dailyArchiveDetail,
+  dailyOverview,
+  finishDaily,
+  listDailyArchive,
+  migrateDaily,
+  startDaily,
+  submitDailyWord,
+} from "./daily.ts";
 import { getGame, getProfile, listGames, migrateStore, readProfile } from "./store.ts";
 
 const PORT = Number(process.env.PORT) || 3001;
@@ -98,6 +107,66 @@ app.get("/api/users/:id/games/:gameId", (req, res) => {
     return;
   }
   res.json(game);
+});
+
+app.get("/api/daily/archive", async (req, res) => {
+  const session = await sessionFromHeaders(req.headers);
+  if (!session?.user) {
+    res.status(401).json({ error: "Connecte-toi pour jouer" });
+    return;
+  }
+  res.json(listDailyArchive());
+});
+
+app.get("/api/daily/archive/:day", async (req, res) => {
+  const session = await sessionFromHeaders(req.headers);
+  if (!session?.user) {
+    res.status(401).json({ error: "Connecte-toi pour jouer" });
+    return;
+  }
+  const detail = dailyArchiveDetail(String(req.params.day ?? ""));
+  if (!detail) {
+    res.status(404).json({ error: "Ce Lexo du jour n’existe pas" });
+    return;
+  }
+  res.json(detail);
+});
+
+app.get("/api/daily", async (req, res) => {
+  const session = await sessionFromHeaders(req.headers);
+  if (!session?.user) {
+    res.status(401).json({ error: "Connecte-toi pour jouer" });
+    return;
+  }
+  res.json(await dailyOverview(session.user.id, session.user.name || ""));
+});
+
+app.post("/api/daily/start", async (req, res) => {
+  const session = await sessionFromHeaders(req.headers);
+  if (!session?.user) {
+    res.status(401).json({ error: "Connecte-toi pour jouer" });
+    return;
+  }
+  res.json(await startDaily(session.user.id, session.user.name || ""));
+});
+
+app.post("/api/daily/word", async (req, res) => {
+  const session = await sessionFromHeaders(req.headers);
+  if (!session?.user) {
+    res.status(401).json({ error: "Connecte-toi pour jouer" });
+    return;
+  }
+  const cells = Array.isArray(req.body?.cells) ? (req.body.cells as number[]) : [];
+  res.json(await submitDailyWord(session.user.id, cells));
+});
+
+app.post("/api/daily/finish", async (req, res) => {
+  const session = await sessionFromHeaders(req.headers);
+  if (!session?.user) {
+    res.status(401).json({ error: "Connecte-toi pour jouer" });
+    return;
+  }
+  res.json(await finishDaily(session.user.id, session.user.name || ""));
 });
 
 app.get("/api/me/profile", async (req, res) => {
@@ -439,6 +508,7 @@ function lanAddresses(): string[] {
 
 console.log(`Lexo dictionary: ${dictionary.size} formes`);
 migrateStore();
+migrateDaily();
 await migrateAuth();
 httpServer.listen(PORT, "0.0.0.0", () => {
   console.log(`Lexo server on http://127.0.0.1:${PORT}`);
