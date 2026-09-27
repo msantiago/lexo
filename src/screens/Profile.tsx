@@ -751,7 +751,7 @@ export function GameDetail({
         {game.rounds.length > 1 ? "s" : ""}
       </p>
       {game.rounds.map((round) => {
-        const summary = round.summary ?? summaryFromRecap(round.recap);
+        const summary = withEntryOrder(round.summary ?? summaryFromRecap(round.recap), round.recap);
         return (
           <section className="panel history-round" key={round.round}>
             <h2>Manche {round.round}</h2>
@@ -784,11 +784,36 @@ export function GameDetail({
   );
 }
 
+function withEntryOrder(summary: RoundSummary, recap: WordRecap[]): RoundSummary {
+  const known = [...summary.unique, ...summary.shared, ...(summary.rejected ?? [])].some(
+    (word) => word.order != null,
+  );
+  if (known) return summary;
+  const orderByKey = new Map<string, number>();
+  let next = 0;
+  for (const block of recap) {
+    for (const word of [...block.words].reverse()) {
+      if (!orderByKey.has(word.key)) orderByKey.set(word.key, next++);
+    }
+  }
+  const stamp = <T extends { key: string }>(word: T) => ({
+    ...word,
+    order: orderByKey.get(word.key),
+  });
+  return {
+    ...summary,
+    unique: summary.unique.map(stamp),
+    shared: summary.shared.map(stamp),
+    rejected: (summary.rejected ?? []).map(stamp),
+  };
+}
+
 function summaryFromRecap(recap: WordRecap[]): RoundSummary {
   const unique: SummaryWord[] = [];
   const shared = new Map<string, SharedWord>();
+  let next = 0;
   for (const block of recap) {
-    for (const word of block.words) {
+    for (const word of [...block.words].reverse()) {
       if (word.shared) {
         const existing = shared.get(word.key);
         if (existing) {
@@ -802,6 +827,7 @@ function summaryFromRecap(recap: WordRecap[]): RoundSummary {
             names: [{ name: block.name, color: block.color }],
             playerIds: [block.playerId],
             likedBy: [],
+            order: next++,
           });
         }
       } else {
@@ -814,6 +840,7 @@ function summaryFromRecap(recap: WordRecap[]): RoundSummary {
           name: block.name,
           color: block.color,
           likedBy: [],
+          order: next++,
         });
       }
     }

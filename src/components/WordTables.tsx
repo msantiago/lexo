@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type {
   PossibleWord,
   RejectedWord,
@@ -8,6 +8,12 @@ import type {
   WordLike,
 } from "@shared/types";
 import { wordPoints } from "@shared/dice";
+import {
+  loadFoundWordOrder,
+  onFoundWordOrder,
+  saveFoundWordOrder,
+  type FoundWordOrder,
+} from "../lib/prefs";
 import WordLink from "./WordLink";
 import { socket } from "../socket";
 
@@ -19,25 +25,74 @@ type Props = {
   onAddWord?: (key: string) => void;
 };
 
+function sortWords<T extends { letters: number; display: string; points?: number; order?: number }>(
+  words: T[],
+  mode: FoundWordOrder,
+): T[] {
+  return words
+    .map((word, index) => ({ word, index }))
+    .sort((a, b) => {
+      if (mode === "entry") {
+        const ao = a.word.order ?? Number.MAX_SAFE_INTEGER;
+        const bo = b.word.order ?? Number.MAX_SAFE_INTEGER;
+        return ao - bo || a.index - b.index;
+      }
+      const byPoints = (b.word.points ?? 0) - (a.word.points ?? 0);
+      if (byPoints) return byPoints;
+      const byLetters = b.word.letters - a.word.letters;
+      if (byLetters) return byLetters;
+      return a.word.display.localeCompare(b.word.display, "fr") || a.index - b.index;
+    })
+    .map((item) => item.word);
+}
+
 export default function WordTables({ summary, youId, canLike = false, admin, onAddWord }: Props) {
+  const [order, setOrder] = useState<FoundWordOrder>(loadFoundWordOrder);
   const interactive = Boolean(youId);
-  const rejected = summary.rejected ?? [];
-  const empty =
-    summary.unique.length === 0 &&
-    summary.shared.length === 0 &&
-    rejected.length === 0;
+  const rejected = sortWords(summary.rejected ?? [], order);
+  const unique = sortWords(summary.unique, order);
+  const shared = sortWords(summary.shared, order);
+  const empty = unique.length === 0 && shared.length === 0 && rejected.length === 0;
+
+  useEffect(() => onFoundWordOrder(setOrder), []);
+
+  const choose = (next: FoundWordOrder) => {
+    setOrder(next);
+    saveFoundWordOrder(next);
+  };
 
   return (
     <>
       {empty && <p className="muted">Aucun mot trouvé.</p>}
 
-      {summary.unique.length > 0 && (
+      {!empty && (
+        <div className="recap-sort" role="group" aria-label="Ordre des mots trouvés">
+          <button
+            type="button"
+            className={order === "letters" ? "on" : ""}
+            aria-pressed={order === "letters"}
+            onClick={() => choose("letters")}
+          >
+            Nb de lettres
+          </button>
+          <button
+            type="button"
+            className={order === "entry" ? "on" : ""}
+            aria-pressed={order === "entry"}
+            onClick={() => choose("entry")}
+          >
+            Ordre de saisie
+          </button>
+        </div>
+      )}
+
+      {unique.length > 0 && (
         <>
           <h3 className="recap-title">Mots uniques</h3>
           <div className="recap-table-wrap">
             <table className="recap-table">
               <tbody>
-                {summary.unique.map((word) => (
+                {unique.map((word) => (
                   <UniqueWordRow
                     key={word.key}
                     word={word}
@@ -52,13 +107,13 @@ export default function WordTables({ summary, youId, canLike = false, admin, onA
         </>
       )}
 
-      {summary.shared.length > 0 && (
+      {shared.length > 0 && (
         <>
           <h3 className="recap-title">Mots en commun (0 pt)</h3>
           <div className="recap-table-wrap">
             <table className="recap-table">
               <tbody>
-                {summary.shared.map((word) => (
+                {shared.map((word) => (
                   <SharedWordRow
                     key={word.key}
                     word={word}

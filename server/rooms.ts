@@ -174,6 +174,7 @@ function roundSummary(room: Room): RoundSummary | null {
   if (room.phase !== "results") return null;
   const unique: RoundSummary["unique"] = [];
   const shared: SharedWord[] = [];
+  let foundOrder = 0;
   for (const [key, owners] of room.foundBy) {
     const sample = room.players.flatMap((p) => p.words.filter((w) => w.key === key))[0];
     if (!sample) continue;
@@ -190,6 +191,7 @@ function roundSummary(room: Room): RoundSummary | null {
         name: p.name,
         color: p.color,
         likedBy: likesFor(room, key),
+        order: foundOrder++,
       });
     } else {
       shared.push({
@@ -199,17 +201,19 @@ function roundSummary(room: Room): RoundSummary | null {
         names: people.map((p) => ({ name: p.name, color: p.color })),
         playerIds: people.map((p) => p.id),
         likedBy: likesFor(room, key),
+        order: foundOrder++,
       });
     }
   }
   unique.sort((a, b) => b.points - a.points || b.letters - a.letters);
   shared.sort((a, b) => b.letters - a.letters);
   const rejected: RejectedWord[] = [...room.rejected.entries()]
-    .map(([key, attempt]) => ({
+    .map(([key, attempt], index) => ({
       key,
       display: attempt.display,
       letters: attempt.letters,
       added: attempt.added,
+      order: index,
       names: room.players
         .filter((p) => attempt.playerIds.has(p.id))
         .map((p) => ({ name: p.name, color: p.color })),
