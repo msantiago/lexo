@@ -366,8 +366,8 @@ io.on("connection", async (socket) => {
     if (result && "error" in result) socket.emit("notice", { message: result.error });
   });
 
-  socket.on("game:start", () => {
-    const result = startGame(socket.id);
+  socket.on("game:start", async () => {
+    const result = await startGame(socket.id);
     if (result && "error" in result) socket.emit("notice", { message: result.error });
   });
 

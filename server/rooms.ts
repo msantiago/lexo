@@ -934,6 +934,8 @@ export function leaveRoom(socketId: string, userId: string | null = null) {
   }
 }
 
+const rolling = new WeakSet<Room>();
+
 export function updateSettings(socketId: string, settings: Partial<GameSettings>) {
   const room = getRoomBySocket(socketId);
   if (!room) return { error: "Pas dans un salon" as const };
@@ -941,7 +943,7 @@ export function updateSettings(socketId: string, settings: Partial<GameSettings>
   if (!player || player.id !== room.hostId) {
     return { error: "Seul l'hôte peut changer les règles" as const };
   }
-  if (room.phase === "playing") {
+  if (room.phase === "playing" || rolling.has(room)) {
     return { error: "Impossible de changer les règles en cours de manche" as const };
   }
   room.settings = clampSettings(settings);
@@ -949,11 +951,11 @@ export function updateSettings(socketId: string, settings: Partial<GameSettings>
   return { ok: true as const };
 }
 
-function beginRound(room: Room) {
+async function beginRound(room: Room) {
   clearTimer(room);
+  const dealt = await rollPlayableGrid(room.settings);
   room.phase = "playing";
   room.round += 1;
-  const dealt = rollPlayableGrid(room.settings);
   room.grid = dealt.grid;
   room.possibleWords = dealt.words;
   room.possibleCount = dealt.words.length;
@@ -976,17 +978,22 @@ function beginRound(room: Room) {
   emitState(room);
 }
 
-export function startGame(socketId: string) {
+export async function startGame(socketId: string) {
   const room = getRoomBySocket(socketId);
   if (!room) return { error: "Pas dans un salon" as const };
   const player = room.players.find((p) => p.socketId === socketId);
   if (!player || player.id !== room.hostId) {
     return { error: "Seul l'hôte peut lancer la manche" as const };
   }
-  if (room.phase === "playing") {
+  if (room.phase === "playing" || rolling.has(room)) {
     return { error: "La manche est déjà lancée" as const };
   }
-  beginRound(room);
+  rolling.add(room);
+  try {
+    await beginRound(room);
+  } finally {
+    rolling.delete(room);
+  }
   return { ok: true as const };
 }
 
