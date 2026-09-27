@@ -2280,17 +2280,33 @@ button.badge-card:focus-visible {
 
 .floating-letters span {
   position: absolute;
+  top: 0;
   font-family: var(--font-dice);
-  color: rgba(244, 234, 216, 0.08);
-  animation: drift 18s linear infinite;
+  color: rgb(244, 234, 216);
+  opacity: 0;
+  animation-name: drift, drift-fade;
+  animation-timing-function: linear, linear;
+  animation-iteration-count: infinite, infinite;
+  animation-fill-mode: both, both;
 }
 
 @keyframes drift {
   from {
-    transform: translateY(20vh);
+    transform: translate3d(0, 108vh, 0);
   }
   to {
-    transform: translateY(-30vh);
+    transform: translate3d(var(--sway, 0px), -18vh, 0);
+  }
+}
+
+@keyframes drift-fade {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  18%,
+  82% {
+    opacity: 0.085;
   }
 }
 
