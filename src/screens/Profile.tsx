@@ -19,6 +19,7 @@ import {
 import { difficultyLabel } from "@shared/rules";
 import type { Cell } from "@shared/types";
 import Avatar from "../components/Avatar";
+import { BadgeButton } from "../components/BadgeDialog";
 import AvatarCropper from "../components/AvatarCropper";
 import type { Crumb } from "../components/Breadcrumb";
 import WordTables, { PossibleWords } from "../components/WordTables";
@@ -645,19 +646,30 @@ export function BadgeBoard({ badges }: { badges: BadgeView[] }) {
           <section key={category} className="panel badge-group">
             <h2>{BADGE_CATEGORY_LABELS[category]}</h2>
             <ul className="badge-grid">
-              {items.map((badge) => (
-                <li
-                  key={badge.id}
-                  className={`badge-card ${badge.earned ? "earned" : "locked"}`}
-                  title={badge.description}
-                >
-                  <span className="badge-icon" aria-hidden>
-                    {badge.icon}
-                  </span>
-                  <strong>{badge.title}</strong>
-                  <p>{badge.description}</p>
-                </li>
-              ))}
+              {items.map((badge) => {
+                const body = (
+                  <>
+                    <span className="badge-icon" aria-hidden>
+                      {badge.icon}
+                    </span>
+                    <strong>{badge.title}</strong>
+                    <span className="badge-desc">{badge.description}</span>
+                  </>
+                );
+                return (
+                  <li key={badge.id}>
+                    {badge.earned ? (
+                      <BadgeButton badge={badge} className="badge-card earned">
+                        {body}
+                      </BadgeButton>
+                    ) : (
+                      <div className="badge-card locked" title={badge.description}>
+                        {body}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </section>
         );
