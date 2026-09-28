@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   DAILY_DURATION_SEC,
-  DAILY_PRIOR_GAMES,
-  DAILY_PRIOR_SCORE,
+  DAILY_STREAK_FULL,
   type DailyArchiveDetail,
   type DailyArchiveRow,
   type DailyFoundWord,
@@ -138,9 +137,15 @@ export default function Daily({ overview, onOverview, onBack, onTrail }: Props) 
           Lexo du jour <NewBadge />
         </h1>
         <p>
-          Une grille moyenne, la même pour tout le monde, tirée à minuit. Cinq minutes, une seule
+          Une grille moyenne, la même pour tout le monde, tirée à minuit. Trois minutes, une seule
           fois. Les solutions arrivent le lendemain.
         </p>
+        <ul className="daily-rules">
+          <li>4 lettres minimum</li>
+          <li>Noms communs uniquement</li>
+          <li>Pas de féminin d’adjectif, pas de pluriels</li>
+          <li>Verbes : Infinitif, participe passé et participe présent</li>
+        </ul>
       </header>
 
       {overview.played ? (
@@ -334,6 +339,9 @@ function DailyPlay({
         <div className="play-top-meta">
           <div className="muted">Lexo du jour</div>
           <div className="muted">{play.score} pts</div>
+          <div className="daily-rules-line">
+            4 lettres · pas de féminin d’adjectif · infinitif et participes
+          </div>
         </div>
         <Timer remainingMs={remaining} totalMs={DAILY_DURATION_SEC * 1000} />
         <div className="play-top-actions">
@@ -391,9 +399,9 @@ function Leaderboard({ overview }: { overview: DailyOverview }) {
     <section className="panel daily-board">
       <h2>Palmarès</h2>
       <p className="muted">
-        La cote part de trois parties imaginaires à {DAILY_PRIOR_SCORE} points. Un excellent premier
-        Lexo te place déjà. Plus tu reviens, plus ta cote suit ton vrai niveau, et les joueurs
-        réguliers restent devant un coup d’éclat isolé.
+        Le meilleur score du jour vaut 100 %, les autres un pourcentage de ce score. L’indice est la
+        moyenne de ta série : elle ne compte pleinement qu’au bout de {DAILY_STREAK_FULL} jours
+        d’affilée. Il se met à jour le lendemain. Un jour sans jouer, tu repars à 0.
       </p>
       {rows.length === 0 ? (
         <p className="hint">Personne n’a encore joué. La première place est libre.</p>
@@ -403,8 +411,8 @@ function Leaderboard({ overview }: { overview: DailyOverview }) {
             <thead>
               <tr>
                 <DailySortHeader label="Joueur" sortKey="name" sort={sort} onSort={chooseSort} />
-                <DailySortHeader label="Cote" sortKey="rating" sort={sort} onSort={chooseSort} />
-                <DailySortHeader label="Parties" sortKey="plays" sort={sort} onSort={chooseSort} />
+                <DailySortHeader label="Indice" sortKey="rating" sort={sort} onSort={chooseSort} />
+                <DailySortHeader label="Jours" sortKey="plays" sort={sort} onSort={chooseSort} />
                 <DailySortHeader label="Moy." sortKey="average" sort={sort} onSort={chooseSort} />
                 <DailySortHeader label="Aujourd’hui" sortKey="today" sort={sort} onSort={chooseSort} />
               </tr>
@@ -421,7 +429,7 @@ function Leaderboard({ overview }: { overview: DailyOverview }) {
                       </strong>
                     </span>
                   </td>
-                  <td className="recap-pts">{row.rating.toLocaleString("fr-FR", { maximumFractionDigits: 1 })}</td>
+                  <td className="recap-pts">{formatIndex(row.rating)}</td>
                   <td>{row.plays}</td>
                   <td>{row.average.toLocaleString("fr-FR", { maximumFractionDigits: 1 })}</td>
                   <td>{row.today === null ? "—" : row.today}</td>
@@ -431,9 +439,6 @@ function Leaderboard({ overview }: { overview: DailyOverview }) {
           </table>
         </div>
       )}
-      <p className="muted daily-formula">
-        Cote = (somme des scores + {DAILY_PRIOR_SCORE * DAILY_PRIOR_GAMES}) / (parties + {DAILY_PRIOR_GAMES}).
-      </p>
     </section>
   );
 }
@@ -458,6 +463,13 @@ function DailySortHeader({
       </button>
     </th>
   );
+}
+
+function formatIndex(rating: number): string {
+  return `${rating.toLocaleString("fr-FR", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  })} %`;
 }
 
 function compareStandings(
