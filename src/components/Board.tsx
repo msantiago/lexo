@@ -151,6 +151,7 @@ export default function Board({
   onSubmit,
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
+  const feltRef = useRef<HTMLDivElement>(null);
   const revealPlan = useRef<number[] | null>(null);
   if (!shuffling) revealPlan.current = null;
   if (revealing && shuffling && revealPlan.current == null) revealPlan.current = revealDelays(grid.length);
@@ -165,6 +166,18 @@ export default function Board({
   onSubmitRef.current = onSubmit;
 
   const points = useMemo(() => path.map(dieCenter), [path]);
+
+  useEffect(() => {
+    const felt = feltRef.current;
+    if (!felt) return;
+    if (flash !== "fail") {
+      felt.classList.remove("is-reject");
+      return;
+    }
+    felt.classList.remove("is-reject");
+    void felt.offsetWidth;
+    felt.classList.add("is-reject");
+  }, [flash]);
 
   useEffect(() => {
     const root = wrapRef.current;
@@ -256,7 +269,7 @@ export default function Board({
 
   return (
     <div ref={wrapRef} className="board-wrap" style={accent ? { ["--path-accent" as string]: accent } : undefined}>
-      <div className="board">
+      <div ref={feltRef} className={`board${flash === "fail" ? " is-reject" : ""}`}>
         {grid.map((cell, i) => (
           <DieTile
             key={i}
