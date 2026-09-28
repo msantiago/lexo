@@ -2013,12 +2013,34 @@ button.badge-card:focus-visible {
   font-weight: 560;
 }
 
-.daily-head p,
-.daily-formula {
+.daily-head p {
   margin: 0;
   color: rgba(255, 248, 238, 0.72);
   font-weight: 650;
   line-height: 1.45;
+}
+
+.daily-rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.daily-rules li {
+  color: var(--gold-soft);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.daily-rules-line {
+  max-width: 28rem;
+  color: rgba(255, 248, 238, 0.62);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .daily-start {

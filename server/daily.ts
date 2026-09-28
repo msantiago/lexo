@@ -5,8 +5,11 @@ import { COUNTDOWN_MS, roundEndsAt } from "../shared/countdown.ts";
 import {
   DAILY_DURATION_SEC,
   dailyRating,
+  fieldIndex,
+  gridPoints,
   parisDay,
   previousParisDay,
+  streakDays,
   type DailyArchiveDetail,
   type DailyArchiveRow,
   type DailyFoundWord,
@@ -146,9 +149,22 @@ function leaderboard(day: string, userId: string): DailyStanding[] {
     )
     .all() as { day: string; user_id: string; name: string; score: number; finished_at: number }[];
 
+  const byDay = new Map<string, number>();
+  for (const row of rows) {
+    if (row.day >= day) continue;
+    byDay.set(row.day, Math.max(byDay.get(row.day) ?? 0, row.score));
+  }
+
   const byUser = new Map<
     string,
-    { name: string; playedAt: number; total: number; plays: number; today: number | null }
+    {
+      name: string;
+      playedAt: number;
+      total: number;
+      plays: number;
+      closed: Map<string, number>;
+      today: number | null;
+    }
   >();
   for (const row of rows) {
     const current = byUser.get(row.user_id) ?? {
@@ -156,10 +172,12 @@ function leaderboard(day: string, userId: string): DailyStanding[] {
       playedAt: 0,
       total: 0,
       plays: 0,
+      closed: new Map(),
       today: null,
     };
     current.total += row.score;
     current.plays += 1;
+    if (row.day < day) current.closed.set(row.day, row.score);
     if (row.finished_at >= current.playedAt) {
       current.playedAt = row.finished_at;
       current.name = row.name;
@@ -168,16 +186,22 @@ function leaderboard(day: string, userId: string): DailyStanding[] {
     byUser.set(row.user_id, current);
   }
 
+  const yesterday = previousParisDay(day);
   const ranked = [...byUser.entries()]
     .map(([id, stats]) => {
       const user = findAuthUser(id);
+      const streak = streakDays(new Set(stats.closed.keys()), yesterday);
+      const indexSum = streak.reduce(
+        (sum, playedDay) => sum + fieldIndex(stats.closed.get(playedDay) ?? 0, byDay.get(playedDay) ?? 0),
+        0,
+      );
       return {
         userId: id,
         name: user?.name?.trim() || stats.name || "Joueur",
         image: user?.image ?? null,
         plays: stats.plays,
         average: stats.plays ? stats.total / stats.plays : 0,
-        rating: dailyRating(stats.total, stats.plays),
+        rating: dailyRating(indexSum, streak.length),
         today: stats.today,
         you: id === userId,
       };
@@ -232,7 +256,7 @@ function archiveRows(): DailyArchiveRow[] {
     return {
       day: puzzle.day,
       wordCount: words.length,
-      possiblePoints: words.reduce((sum, word) => sum + (word.points || 0), 0),
+      possiblePoints: gridPoints(words),
       players: played.length,
       bestScore: best < 0 ? null : best,
       bestNames: best < 0 ? [] : names,

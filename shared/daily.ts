@@ -1,19 +1,45 @@
 import type { Cell, PossibleWord } from "./types.ts";
 
-/** Cinq minutes, un peu plus qu’une manche classique. */
-export const DAILY_DURATION_SEC = 300;
+/** Trois minutes, comme une manche classique. */
+export const DAILY_DURATION_SEC = 180;
+
+/** Total des points qu’on peut prendre sur une grille. */
+export function gridPoints(words: readonly { points?: number }[]): number {
+  return words.reduce((sum, word) => sum + (word.points || 0), 0);
+}
 
 /**
- * Cote = (somme des scores + PRIOR × PARTIES) / (parties + PARTIES).
- * Les PARTIES fictives au score PRIOR empêchent un coup d’éclat isolé de
- * détrôner les habitués, tout en laissant un excellent premier jour bien placé.
+ * Part du meilleur score du jour. Le meilleur vaut 100,
+ * les autres sont un pourcentage de ce score.
  */
-export const DAILY_PRIOR_SCORE = 30;
-export const DAILY_PRIOR_GAMES = 3;
+export function fieldIndex(score: number, best: number): number {
+  if (best <= 0) return 100;
+  return (100 * score) / best;
+}
 
-export function dailyRating(totalPoints: number, plays: number): number {
-  if (plays <= 0) return 0;
-  return (totalPoints + DAILY_PRIOR_SCORE * DAILY_PRIOR_GAMES) / (plays + DAILY_PRIOR_GAMES);
+/**
+ * Jours d’affilée pour que l’indice vaille toute la moyenne.
+ * Avant, il est au prorata : une série courte reste derrière une série longue,
+ * et repartir de zéro après une mauvaise journée ne rattrape pas.
+ */
+export const DAILY_STREAK_FULL = 7;
+
+/** Moyenne de la série, pondérée par sa longueur. Sans série, l’indice repart à 0. */
+export function dailyRating(indexSum: number, settled: number): number {
+  if (settled <= 0) return 0;
+  const weight = Math.min(1, settled / DAILY_STREAK_FULL);
+  return (indexSum / settled) * weight;
+}
+
+/** Jours joués d’affilée en remontant depuis `end`, celui-ci inclus. */
+export function streakDays(played: ReadonlySet<string>, end: string): string[] {
+  const days: string[] = [];
+  let cursor = end;
+  while (played.has(cursor)) {
+    days.push(cursor);
+    cursor = previousParisDay(cursor);
+  }
+  return days;
 }
 
 export type DailyFoundWord = {

@@ -1,3 +1,4 @@
+import { DAILY_STREAK_FULL } from "@shared/daily";
 import NewBadge from "../components/NewBadge";
 import { CONTACT_PATH, SIGN_IN_PATH, SIGN_UP_PATH } from "../lib/nav";
 
@@ -40,15 +41,15 @@ const KEEPS = [
 const DAILY = [
   {
     title: "Même grille",
-    text: "Tirée à minuit, difficulté moyenne, identique pour tout le monde.",
+    text: "Tirée à minuit, grille moyenne, identique pour tout le monde. Trois minutes, une seule fois.",
   },
   {
-    title: "Une fois",
-    text: "Cinq minutes. Pas de seconde partie dans la journée.",
+    title: "Les règles",
+    text: "4 lettres minimum. Pas de féminin d’adjectif. Infinitif, participe passé et participe présent.",
   },
   {
-    title: "Le lendemain",
-    text: "Les solutions s’ouvrent, et le palmarès suit les joueurs au fil des jours.",
+    title: "L’indice",
+    text: `Le meilleur score du jour vaut 100 %, le tien un pourcentage de ce score. Moyenne de ta série, pleine au bout de ${DAILY_STREAK_FULL} jours d’affilée. Figée le lendemain, avec les solutions. Un jour sans jouer, tu repars à 0.`,
   },
 ];
 
@@ -157,8 +158,8 @@ export default function Landing({ name }: Props) {
             <NewBadge />
           </h2>
           <p>
-            Chaque jour, une seule grille pour tout Lexo. Tu la joues une fois, puis tu compares
-            ton score aux autres.
+            Chaque jour, une seule grille pour tout Lexo. Tu la joues une fois. Sans toi le
+            lendemain, l’indice retombe à 0.
           </p>
         </div>
         <ul>

@@ -211,7 +211,7 @@ export default function Home({
                   ? `${daily.score ?? 0} pts aujourd’hui · voir le palmarès`
                   : daily.inProgress
                     ? "Partie en cours · le temps continue"
-                    : "5 minutes · grille moyenne · une fois par jour"}
+                    : "3 minutes · grille moyenne · une fois par jour"}
               </span>
             </button>
           )}
