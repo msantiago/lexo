@@ -333,13 +333,14 @@ io.on("connection", async (socket) => {
   const session = await sessionFromHeaders(socket.handshake.headers);
   const userId = session?.user.id ?? null;
   socket.data.userId = userId;
+  socket.data.tabId = tabIdOf(socket);
   socket.data.userEmail = session?.user.email ?? null;
   socket.data.isAdmin = isAdminUser(session?.user);
   socket.emit("session:role", { admin: Boolean(socket.data.isAdmin) });
   socket.emit("lobby:rooms", lobbyRoomsFor());
 
   if (userId) {
-    const rejoined = rejoinByUserId(socket.id, userId);
+    const rejoined = rejoinByUserId(socket.id, userId, tabOf(socket));
     if (rejoined) {
       notifyReplaced(rejoined.replacedSocketIds);
       emitMembership(socket, rejoined.room, rejoined.playerId, rejoined.observing);
@@ -359,6 +360,7 @@ io.on("connection", async (socket) => {
         name ?? "",
         Boolean(solo),
         userId,
+        tabOf(socket),
       );
       notifyReplaced(replacedSocketIds);
       emitMembership(socket, room, playerId);
@@ -371,7 +373,7 @@ io.on("connection", async (socket) => {
   socket.on("room:join", ({ code, name }: { code?: string; name?: string }) => {
     const userId = requireUser(socket);
     if (!userId) return;
-    const result = joinRoom(socket.id, code ?? "", name ?? "", userId);
+    const result = joinRoom(socket.id, code ?? "", name ?? "", userId, tabOf(socket));
     if ("error" in result) {
       socket.emit("notice", { message: result.error });
       return;
@@ -386,7 +388,7 @@ io.on("connection", async (socket) => {
       socket.emit("notice", { message: "Connecte-toi pour regarder" });
       return;
     }
-    const result = observeRoom(socket.id, code ?? "", name ?? "", userId);
+    const result = observeRoom(socket.id, code ?? "", name ?? "", userId, tabOf(socket));
     if ("error" in result) {
       socket.emit("notice", { message: result.error });
       return;
@@ -406,7 +408,7 @@ io.on("connection", async (socket) => {
       socket.emit("notice", { message: "Ce joueur n’est pas en partie" });
       return;
     }
-    const result = observeRoom(socket.id, seat.code, name ?? "", userId);
+    const result = observeRoom(socket.id, seat.code, name ?? "", userId, tabOf(socket));
     if ("error" in result) {
       socket.emit("notice", { message: result.error });
       return;
@@ -420,11 +422,12 @@ io.on("connection", async (socket) => {
     ({ code, playerId }: { code?: string; playerId?: string }) => {
       const userId = requireUser(socket);
       if (!userId) return;
-      const result = rejoinRoom(socket.id, code ?? "", playerId ?? "", userId);
+      const result = rejoinRoom(socket.id, code ?? "", playerId ?? "", userId, tabOf(socket));
       if ("error" in result) {
         socket.emit("notice", { message: result.error });
         return;
       }
+      if ("pending" in result) return;
       notifyReplaced(result.replacedSocketIds);
       emitMembership(socket, result.room, result.playerId, result.observing);
     },
@@ -524,6 +527,19 @@ process.on("uncaughtException", (err) => {
 
 function userIdOf(socket: { data: { userId?: unknown } }): string | null {
   return typeof socket.data.userId === "string" ? socket.data.userId : null;
+}
+
+function tabIdOf(socket: { handshake: { auth?: unknown } }): string | null {
+  const auth = socket.handshake.auth;
+  if (!auth || typeof auth !== "object") return null;
+  const raw = (auth as { tabId?: unknown }).tabId;
+  if (typeof raw !== "string") return null;
+  const id = raw.trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? id : null;
+}
+
+function tabOf(socket: { data: { tabId?: unknown } }): string | null {
+  return typeof socket.data.tabId === "string" ? socket.data.tabId : null;
 }
 
 function onlineUserIds(): Set<string> {

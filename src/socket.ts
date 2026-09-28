@@ -37,8 +37,22 @@ const socketUrl =
     ? `${window.location.protocol}//${window.location.hostname}:3001`
     : undefined;
 
+function browserTabId(): string {
+  const key = "lexo:tab";
+  try {
+    const existing = sessionStorage.getItem(key);
+    if (existing) return existing;
+    const created = crypto.randomUUID();
+    sessionStorage.setItem(key, created);
+    return created;
+  } catch {
+    return crypto.randomUUID();
+  }
+}
+
 export const socket: Socket<ServerToClient, ClientToServer> = io(socketUrl, {
   autoConnect: true,
   transports: ["websocket", "polling"],
   withCredentials: true,
+  auth: { tabId: browserTabId() },
 });
