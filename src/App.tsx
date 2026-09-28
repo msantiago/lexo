@@ -100,7 +100,7 @@ export default function App() {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
     };
     const onError = ({ message }: { message: string }) => {
-      if (message === "Connecte-toi pour jouer") {
+      if (message === "Connecte-toi pour jouer" || message === "Ce compte joue sur un autre appareil") {
         goHome(message);
         return;
       }

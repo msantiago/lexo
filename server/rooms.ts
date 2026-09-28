@@ -34,6 +34,8 @@ type Player = {
   color: string;
   socketId: string | null;
   disconnectedAt: number | null;
+  /** Browser tab that owns this seat. Another open tab must not take it over. */
+  tabId: string | null;
   userId: string | null;
   words: FoundWord[];
   roundScore: number;
@@ -47,6 +49,7 @@ type Observer = {
   name: string;
   socketId: string | null;
   disconnectedAt: number | null;
+  tabId: string | null;
   userId: string | null;
 };
 
@@ -87,6 +90,12 @@ type Room = {
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 /** Keep a seat after a drop so a page refresh can rejoin; then reap the room. */
 export const DISCONNECT_GRACE_MS = 30_000;
+/**
+ * After a drop, keep the seat for the tab that was playing.
+ * Another browser left open can resume only once this has passed,
+ * so a short reconnect on the phone is not stolen by the computer.
+ */
+const SEAT_HANDOFF_MS = 8_000;
 const rooms = new Map<string, Room>();
 const socketRoom = new Map<string, string>();
 
@@ -665,10 +674,30 @@ function evacuateUser(userId: string, exceptCode?: string): string[] {
   return kicked;
 }
 
-function claimSeat(room: Room, player: Player, socketId: string): string | null {
+type Seat = {
+  socketId: string | null;
+  disconnectedAt: number | null;
+  tabId: string | null;
+};
+
+/**
+ * Automatic resume (a socket connecting, or a tab reloading).
+ * A live seat stays with its tab. The same tab may replace its own
+ * lingering socket. Another tab waits out SEAT_HANDOFF_MS after a drop.
+ */
+function canAutoReclaim(seat: Seat, socketId: string, tabId: string | null): "ok" | "busy" | "wait" {
+  if (seat.socketId === socketId) return "ok";
+  if (tabId && seat.tabId === tabId) return "ok";
+  if (seat.socketId) return "busy";
+  if (seat.disconnectedAt != null && Date.now() - seat.disconnectedAt < SEAT_HANDOFF_MS) return "wait";
+  return "ok";
+}
+
+function claimSeat(room: Room, player: Player, socketId: string, tabId: string | null): string | null {
   const previous = player.socketId && player.socketId !== socketId ? player.socketId : null;
   if (previous) socketRoom.delete(previous);
   player.socketId = socketId;
+  player.tabId = tabId;
   player.disconnectedAt = null;
   socketRoom.set(socketId, room.code);
   return previous;
@@ -679,6 +708,7 @@ function claimDisconnectedName(
   socketId: string,
   playerName: string,
   userId: string | null,
+  tabId: string | null,
 ) {
   const existing = room.players.find(
     (p) => !isConnected(p) && foldPlayerName(p.name) === foldPlayerName(playerName),
@@ -687,7 +717,7 @@ function claimDisconnectedName(
   if (existing.userId && userId && existing.userId !== userId) return null;
   if (userId && !existing.userId) existing.userId = userId;
   const extra = userId ? evacuateUser(userId, room.code) : [];
-  const replaced = claimSeat(room, existing, socketId);
+  const replaced = claimSeat(room, existing, socketId, tabId);
   emitState(room);
   return {
     room,
@@ -701,6 +731,7 @@ function makePlayer(
   name: string,
   color: string,
   userId: string | null,
+  tabId: string | null,
 ): Player {
   return {
     id: makeId(),
@@ -708,6 +739,7 @@ function makePlayer(
     color,
     socketId,
     disconnectedAt: null,
+    tabId,
     userId,
     words: [],
     roundScore: 0,
@@ -730,12 +762,18 @@ function abandonCurrentSeat(socketId: string) {
   if (player) removePlayer(room, player);
 }
 
-export function createRoom(socketId: string, name: string, solo = false, userId: string | null = null) {
+export function createRoom(
+  socketId: string,
+  name: string,
+  solo = false,
+  userId: string | null = null,
+  tabId: string | null = null,
+) {
   if (!userId) throw new Error("Connecte-toi pour jouer");
   abandonCurrentSeat(socketId);
   const replacedSocketIds = userId ? evacuateUser(userId) : [];
   const code = makeCode();
-  const player = makePlayer(socketId, sanitizeName(name), PLAYER_COLORS[0], userId);
+  const player = makePlayer(socketId, sanitizeName(name), PLAYER_COLORS[0], userId, tabId);
   const room: Room = {
     code,
     hostId: player.id,
@@ -765,7 +803,13 @@ export function createRoom(socketId: string, name: string, solo = false, userId:
   return { room, playerId: player.id, replacedSocketIds };
 }
 
-export function joinRoom(socketId: string, code: string, name: string, userId: string | null = null) {
+export function joinRoom(
+  socketId: string,
+  code: string,
+  name: string,
+  userId: string | null = null,
+  tabId: string | null = null,
+) {
   if (!userId) return { error: "Connecte-toi pour jouer" as const };
   const room = rooms.get(code.trim().toUpperCase());
   if (!room) return { error: "Salon introuvable" as const };
@@ -777,7 +821,7 @@ export function joinRoom(socketId: string, code: string, name: string, userId: s
   const existing = room.players.find((p) => p.userId === userId);
   if (existing) {
     const extra = evacuateUser(userId, room.code);
-    const replaced = claimSeat(room, existing, socketId);
+    const replaced = claimSeat(room, existing, socketId, tabId);
     emitState(room);
     return {
       room,
@@ -787,7 +831,7 @@ export function joinRoom(socketId: string, code: string, name: string, userId: s
   }
   const replacedSocketIds = evacuateUser(userId);
   const playerName = sanitizeName(name);
-  const vacated = claimDisconnectedName(room, socketId, playerName, userId);
+  const vacated = claimDisconnectedName(room, socketId, playerName, userId, tabId);
   if (vacated) return vacated;
   if (room.players.length >= MAX_PLAYERS) {
     return { error: "Ce salon est complet (10 joueurs)" as const };
@@ -796,70 +840,89 @@ export function joinRoom(socketId: string, code: string, name: string, userId: s
     return { error: "Ce prénom est déjà pris dans ce salon" as const };
   }
   if (room.solo) return { error: "Cette partie est en solo" as const };
-  const player = makePlayer(socketId, playerName, nextColor(room), userId);
+  const player = makePlayer(socketId, playerName, nextColor(room), userId, tabId);
   room.players.push(player);
   socketRoom.set(socketId, room.code);
   emitState(room);
   return { room, playerId: player.id, replacedSocketIds };
 }
 
-export function rejoinRoom(socketId: string, code: string, playerId: string, userId: string | null = null) {
+export function rejoinRoom(
+  socketId: string,
+  code: string,
+  playerId: string,
+  userId: string | null = null,
+  tabId: string | null = null,
+) {
   if (!userId) return { error: "Connecte-toi pour jouer" as const };
   const room = rooms.get(code.trim().toUpperCase());
   if (!room) return { error: "Salon introuvable" as const };
   const observer = room.observers.find((o) => o.id === playerId);
   if (observer) {
     if (observer.userId !== userId) return { error: "Joueur introuvable" as const };
-    const replacedSocketId = claimObserver(room, observer, socketId);
+    const decision = canAutoReclaim(observer, socketId, tabId);
+    if (decision === "busy") return { error: "Ce compte joue sur un autre appareil" as const };
+    if (decision === "wait") return { pending: true as const };
+    const sameTab = Boolean(tabId && observer.tabId === tabId);
+    const replacedSocketId = claimObserver(room, observer, socketId, tabId);
     return {
       room,
       playerId: observer.id,
       observing: true as const,
-      replacedSocketIds: replacedSocketId ? [replacedSocketId] : [],
+      replacedSocketIds: !sameTab && replacedSocketId ? [replacedSocketId] : [],
     };
   }
   const player = room.players.find((p) => p.id === playerId);
   if (!player || player.userId !== userId) return { error: "Joueur introuvable" as const };
-  const replacedSocketId = claimSeat(room, player, socketId);
+  const decision = canAutoReclaim(player, socketId, tabId);
+  if (decision === "busy") return { error: "Ce compte joue sur un autre appareil" as const };
+  if (decision === "wait") return { pending: true as const };
+  const sameTab = Boolean(tabId && player.tabId === tabId);
+  const replacedSocketId = claimSeat(room, player, socketId, tabId);
   emitState(room);
   return {
     room,
     playerId: player.id,
     observing: false as const,
-    replacedSocketIds: replacedSocketId ? [replacedSocketId] : [],
+    replacedSocketIds: !sameTab && replacedSocketId ? [replacedSocketId] : [],
   };
 }
 
-export function rejoinByUserId(socketId: string, userId: string) {
+export function rejoinByUserId(socketId: string, userId: string, tabId: string | null = null) {
   for (const room of rooms.values()) {
     const player = room.players.find((p) => p.userId === userId);
     if (player) {
-      const replacedSocketId = claimSeat(room, player, socketId);
+      if (canAutoReclaim(player, socketId, tabId) !== "ok") return null;
+      const sameTab = Boolean(tabId && player.tabId === tabId);
+      const replacedSocketId = claimSeat(room, player, socketId, tabId);
       emitState(room);
       return {
         room,
         playerId: player.id,
         observing: false as const,
-        replacedSocketIds: replacedSocketId ? [replacedSocketId] : [],
+        replacedSocketIds: !sameTab && replacedSocketId ? [replacedSocketId] : [],
       };
     }
     const observer = room.observers.find((o) => o.userId === userId);
     if (!observer) continue;
-    const replacedSocketId = claimObserver(room, observer, socketId);
+    if (canAutoReclaim(observer, socketId, tabId) !== "ok") return null;
+    const sameTab = Boolean(tabId && observer.tabId === tabId);
+    const replacedSocketId = claimObserver(room, observer, socketId, tabId);
     return {
       room,
       playerId: observer.id,
       observing: true as const,
-      replacedSocketIds: replacedSocketId ? [replacedSocketId] : [],
+      replacedSocketIds: !sameTab && replacedSocketId ? [replacedSocketId] : [],
     };
   }
   return null;
 }
 
-function claimObserver(room: Room, observer: Observer, socketId: string): string | null {
+function claimObserver(room: Room, observer: Observer, socketId: string, tabId: string | null): string | null {
   const previous = observer.socketId && observer.socketId !== socketId ? observer.socketId : null;
   if (previous) socketRoom.delete(previous);
   observer.socketId = socketId;
+  observer.tabId = tabId;
   observer.disconnectedAt = null;
   socketRoom.set(socketId, room.code);
   return previous;
@@ -1010,6 +1073,7 @@ export function observeRoom(
   code: string,
   name: string,
   userId: string | null = null,
+  tabId: string | null = null,
 ) {
   if (!userId) return { error: "Connecte-toi pour jouer" as const };
   const room = rooms.get(code.trim().toUpperCase());
@@ -1029,7 +1093,7 @@ export function observeRoom(
   );
   if (existing) {
     const extra = userId ? evacuateUser(userId, room.code) : [];
-    const replaced = claimObserver(room, existing, socketId);
+    const replaced = claimObserver(room, existing, socketId, tabId);
     if (name.trim()) existing.name = sanitizeName(name);
     return {
       room,
@@ -1044,6 +1108,7 @@ export function observeRoom(
     name: sanitizeName(name) || "Observateur",
     socketId,
     disconnectedAt: null,
+    tabId,
     userId,
   };
   room.observers.push(observer);
