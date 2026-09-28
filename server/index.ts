@@ -319,7 +319,7 @@ setBroadcast((room, event, payload) => {
 
 setLobbyBroadcast((publicRooms) => {
   for (const sock of io.sockets.sockets.values()) {
-    sock.emit("lobby:rooms", publicRooms);
+    sock.emit("lobby:rooms", roomsForUser(publicRooms, userIdOf(sock)));
   }
 });
 
@@ -337,7 +337,7 @@ io.on("connection", async (socket) => {
   socket.data.userEmail = session?.user.email ?? null;
   socket.data.isAdmin = isAdminUser(session?.user);
   socket.emit("session:role", { admin: Boolean(socket.data.isAdmin) });
-  socket.emit("lobby:rooms", lobbyRoomsFor());
+  socket.emit("lobby:rooms", lobbyRoomsFor(socket));
 
   if (userId) {
     const rejoined = rejoinByUserId(socket.id, userId, tabOf(socket));
@@ -348,7 +348,7 @@ io.on("connection", async (socket) => {
   }
 
   socket.on("lobby:list", () => {
-    socket.emit("lobby:rooms", lobbyRoomsFor());
+    socket.emit("lobby:rooms", lobbyRoomsFor(socket));
   });
 
   socket.on("room:create", ({ name, solo }: { name?: string; solo?: boolean }) => {
@@ -570,8 +570,19 @@ function isAdminOf(socket: { data: { isAdmin?: unknown } }): boolean {
   return socket.data.isAdmin === true;
 }
 
-function lobbyRoomsFor() {
-  return listPublicRooms();
+function lobbyRoomsFor(socket: { data: { userId?: unknown } }) {
+  return roomsForUser(listPublicRooms(), userIdOf(socket));
+}
+
+function roomsForUser(rooms: ReturnType<typeof listPublicRooms>, userId: string | null) {
+  if (!userId) return rooms;
+  const mine = new Set(
+    listUserSeats()
+      .filter((seat) => seat.userId === userId && !seat.observing)
+      .map((seat) => seat.code),
+  );
+  if (mine.size === 0) return rooms;
+  return rooms.map((room) => (mine.has(room.code) ? { ...room, mine: true } : room));
 }
 
 function emitMembership(

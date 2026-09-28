@@ -102,6 +102,8 @@ export type LobbyRoom = {
   playerCount: number;
   difficulty: GridDifficulty;
   solo: boolean;
+  /** This account already has a seat. Continuing here is an explicit choice. */
+  mine?: boolean;
   players: LobbyPlayer[];
 };
 

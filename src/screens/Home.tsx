@@ -316,12 +316,14 @@ function LobbyRoomGroup({
               (p) => foldPlayerName(p.name) === folded && p.connected,
             );
             const canRejoin = ready && mineOffline;
+            const canContinue = ready && Boolean(room.mine);
             return (
               <LobbyRoomCard
                 key={room.code}
                 room={room}
                 nameTaken={nameTaken}
                 canRejoin={canRejoin}
+                canContinue={canContinue}
                 canJoin={canRejoin || (ready && !room.solo && room.playerCount < MAX_PLAYERS && !nameTaken)}
                 admin={admin}
                 onJoin={() => {
@@ -350,6 +352,7 @@ function LobbyRoomCard({
   room,
   nameTaken,
   canRejoin,
+  canContinue,
   canJoin,
   admin,
   onJoin,
@@ -359,6 +362,7 @@ function LobbyRoomCard({
   room: LobbyRoom;
   nameTaken: boolean;
   canRejoin: boolean;
+  canContinue: boolean;
   canJoin: boolean;
   admin?: boolean;
   onJoin: () => void;
@@ -414,6 +418,7 @@ function LobbyRoomCard({
         room={room}
         canJoin={canJoin}
         canRejoin={canRejoin}
+        canContinue={canContinue}
         nameTaken={nameTaken}
         admin={admin}
         onJoin={onJoin}
@@ -441,6 +446,7 @@ function RoomActions({
   room,
   canJoin,
   canRejoin,
+  canContinue,
   nameTaken,
   admin,
   onJoin,
@@ -450,6 +456,7 @@ function RoomActions({
   room: LobbyRoom;
   canJoin: boolean;
   canRejoin: boolean;
+  canContinue: boolean;
   nameTaken: boolean;
   admin?: boolean;
   onJoin: () => void;
@@ -465,7 +472,12 @@ function RoomActions({
   return (
     <div className="live-actions">
       {onObserve && <WatchButton onClick={onObserve} />}
-      {!room.solo && <JoinButton label={joinLabel} disabled={!canJoin} onClick={onJoin} />}
+      {canContinue && (
+        <button type="button" className="btn btn-gold btn-compact" onClick={onJoin}>
+          Continuer ici
+        </button>
+      )}
+      {!room.mine && !room.solo && <JoinButton label={joinLabel} disabled={!canJoin} onClick={onJoin} />}
       {admin && onClose && (
         <LeaveButton
           compact

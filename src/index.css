@@ -4580,6 +4580,7 @@ button.badge-card:focus-visible {
 .live-actions .btn-compact {
   padding: 6px 10px;
   font-size: 12px;
+  white-space: nowrap;
 }
 
 @media (min-width: 760px) {
