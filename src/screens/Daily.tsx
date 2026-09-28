@@ -200,10 +200,11 @@ function DailyPlay({
   const [path, setPath] = useState<number[]>([]);
   const [typed, setTyped] = useState("");
   const [flash, setFlash] = useState<"success" | "fail" | null>(null);
-  const [feedback, setFeedback] = useState<{ text: string; ok: boolean } | null>(null);
+  const [feedback, setFeedback] = useState<{ text: string; ok: boolean; id: number } | null>(null);
   const [locked, setLocked] = useState(false);
   const [now, setNow] = useState(Date.now());
   const lockedRef = useRef(false);
+  const rejectTimer = useRef(0);
   const pathRef = useRef(path);
   const typedRef = useRef(typed);
   const playRef = useRef(play);
@@ -228,10 +229,28 @@ function DailyPlay({
   }, [remaining, onFinish]);
 
   const clearWord = () => {
+    window.clearTimeout(rejectTimer.current);
     setPath([]);
     setTyped("");
     setFlash(null);
     setLocked(false);
+  };
+
+  const showReject = (text: string, clearPath: boolean) => {
+    window.clearTimeout(rejectTimer.current);
+    setFeedback({ text, ok: false, id: Date.now() });
+    setFlash(null);
+    window.setTimeout(() => setFlash("fail"), 0);
+    playFailSound();
+    hapticFail();
+    if (clearPath) setLocked(true);
+    rejectTimer.current = window.setTimeout(() => {
+      setFlash((current) => (current === "fail" ? null : current));
+      if (!clearPath) return;
+      setPath([]);
+      setTyped("");
+      setLocked(false);
+    }, 680);
   };
 
   const submit = async (cells: number[]) => {
@@ -239,12 +258,7 @@ function DailyPlay({
     if (lockedRef.current || cells.length === 0 || Date.now() >= current.endsAt) return;
     const built = pathToWord(current.grid, cells);
     if (built.letters < 4) {
-      setFlash("fail");
-      setFeedback({ text: FAIL_MESSAGES["too-short"], ok: false });
-      playFailSound();
-      hapticFail();
-      setLocked(true);
-      window.setTimeout(clearWord, 420);
+      showReject(FAIL_MESSAGES["too-short"], true);
       return;
     }
     setLocked(true);
@@ -266,17 +280,13 @@ function DailyPlay({
       return;
     }
     if (!data.ok || !data.words) {
-      setFlash("fail");
-      setFeedback({ text: FAIL_MESSAGES[data.reason ?? "unknown"], ok: false });
-      playFailSound();
-      hapticFail();
-      window.setTimeout(clearWord, 420);
+      showReject(FAIL_MESSAGES[data.reason ?? "unknown"], true);
       return;
     }
     const found = data.words[data.words.length - 1];
     onPlay({ ...current, words: data.words, score: data.score ?? current.score });
     setFlash("success");
-    setFeedback({ text: found?.display ?? "", ok: true });
+    setFeedback({ text: found?.display ?? "", ok: true, id: Date.now() });
     playScoreSound(found?.letters ?? 4);
     hapticSuccess();
     window.setTimeout(clearWord, 280);
@@ -318,7 +328,7 @@ function DailyPlay({
       let nextTyped = extendTypedWord(play.grid, base, letter);
       if (nextTyped === null && base) nextTyped = extendTypedWord(play.grid, "", letter);
       if (nextTyped === null) {
-        setFeedback({ text: "Pas sur la grille", ok: false });
+        showReject("Pas sur la grille", false);
         return;
       }
       if (nextTyped === typedRef.current && pathRef.current.length) return;
@@ -351,27 +361,27 @@ function DailyPlay({
         </div>
       </div>
       <div className="stage">
-        <div className="board-wrap">
-          {feedback && <div className={`feedback ${feedback.ok ? "ok" : ""}`}>{feedback.text}</div>}
-          <CountdownGate startedAt={startedAt} now={now}>
-            <Board
-              grid={play.grid}
-              path={path}
-              flash={flash}
-              disabled={locked || counting || remaining <= 0}
-              shuffling={countdownShuffling(startedAt, now)}
-              revealing={countdownRevealing(startedAt, now)}
-              onPathChange={(next) => {
-                if (lockedRef.current) return;
-                setTyped("");
-                setPath(next);
-              }}
-              onSubmit={(next) => void submit(next)}
-            />
-          </CountdownGate>
-          <p className={`preview ${preview ? "" : "empty"}`}>{preview || "Glisse ou tape un mot"}</p>
-          <p className="hint">Clavier · Entrée pour valider · Q = Qu</p>
+        <div key={feedback?.id} className={`feedback ${feedback?.ok ? "ok" : ""}`} aria-live="polite">
+          {feedback?.text ?? ""}
         </div>
+        <CountdownGate startedAt={startedAt} now={now}>
+          <Board
+            grid={play.grid}
+            path={path}
+            flash={flash}
+            disabled={locked || counting || remaining <= 0}
+            shuffling={countdownShuffling(startedAt, now)}
+            revealing={countdownRevealing(startedAt, now)}
+            onPathChange={(next) => {
+              if (lockedRef.current) return;
+              setTyped("");
+              setPath(next);
+            }}
+            onSubmit={(next) => void submit(next)}
+          />
+        </CountdownGate>
+        <p className={`preview ${preview ? "" : "empty"}`}>{preview || "Glisse ou tape un mot"}</p>
+        <p className="hint">Clavier · Entrée pour valider · Q = Qu</p>
         <WordList words={play.words.map((word) => ({ ...word, shared: false }))} />
       </div>
     </div>

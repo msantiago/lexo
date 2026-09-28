@@ -80,6 +80,7 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
   const pathRef = useRef(path);
   const typedRef = useRef(typed);
   const lockedRef = useRef(locked);
+  const rejectTimer = useRef(0);
   pathRef.current = path;
   typedRef.current = typed;
 
@@ -132,10 +133,28 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
   }, []);
 
   const clearWord = () => {
+    window.clearTimeout(rejectTimer.current);
     setFlash(null);
     setDrawPath([]);
     setTyped("");
     setLocked(false);
+  };
+
+  const showReject = (text: string, clearPath: boolean) => {
+    window.clearTimeout(rejectTimer.current);
+    setFeedback({ text, ok: false, id: Date.now() });
+    setFlash(null);
+    window.setTimeout(() => setFlash("fail"), 0);
+    playFailSound();
+    hapticFail();
+    if (clearPath) setLocked(true);
+    rejectTimer.current = window.setTimeout(() => {
+      setFlash((current) => (current === "fail" ? null : current));
+      if (!clearPath) return;
+      setDrawPath([]);
+      setTyped("");
+      setLocked(false);
+    }, 680);
   };
 
   useEffect(() => {
@@ -157,10 +176,8 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
         }
         hapticSuccess(result.shared);
       } else {
-        setFlash("fail");
-        setFeedback({ text: FAIL_MESSAGES[result.reason], ok: false, id: Date.now() });
-        playFailSound();
-        hapticFail();
+        showReject(FAIL_MESSAGES[result.reason], true);
+        return;
       }
       window.setTimeout(clearWord, 420);
     };
@@ -185,12 +202,7 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
     }
     const built = pathToWord(room.grid, next);
     if (built.letters < room.settings.minLetters) {
-      setFlash("fail");
-      setFeedback({ text: FAIL_MESSAGES["too-short"], ok: false, id: Date.now() });
-      playFailSound();
-      hapticFail();
-      setLocked(true);
-      window.setTimeout(clearWord, 420);
+      showReject(FAIL_MESSAGES["too-short"], true);
       return;
     }
     setLocked(true);
@@ -250,7 +262,7 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
         nextTyped = extendTypedWord(grid, "", letter);
       }
       if (nextTyped === null) {
-        setFeedback({ text: "Pas sur la grille", ok: false, id: Date.now() });
+        showReject("Pas sur la grille", false);
         return;
       }
       if (nextTyped === typedRef.current && pathRef.current.length) return;
@@ -365,6 +377,9 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
                 : "En attente des joueurs"
               : "Glisse ou tape un mot"}
         </div>
+        <div key={feedback?.id} className={`feedback ${feedback?.ok ? "ok" : ""}`} aria-live="polite">
+          {feedback?.text ?? ""}
+        </div>
         {room.grid && (
           <div className="board-burst-host">
             <CountdownGate startedAt={room.startedAt} now={now}>
@@ -388,9 +403,6 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
             <ScoreBursts bursts={bursts} onDone={removeBurst} />
           </div>
         )}
-        <div key={feedback?.id} className={`feedback ${feedback?.ok ? "ok" : ""}`}>
-          {feedback?.text ?? ""}
-        </div>
         <p className="hint">
           {observing
             ? watchPinned

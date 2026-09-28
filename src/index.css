@@ -2955,9 +2955,47 @@ button.badge-card:focus-visible {
     radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.08), transparent 40%),
     linear-gradient(160deg, #1a6a61, #0d3f3a 60%, #0a2f2b);
   border-radius: 28px;
+  outline: 4px solid transparent;
+  outline-offset: -5px;
   box-shadow:
     inset 0 0 0 3px rgba(232, 184, 74, 0.18),
     0 22px 40px rgba(0, 0, 0, 0.35);
+}
+
+.board.is-reject {
+  animation: board-reject 0.62s ease;
+}
+
+@keyframes board-reject {
+  0%,
+  42%,
+  100% {
+    outline-color: transparent;
+    box-shadow:
+      inset 0 0 0 3px rgba(232, 184, 74, 0.18),
+      0 22px 40px rgba(0, 0, 0, 0.35);
+  }
+  14%,
+  28%,
+  56%,
+  74% {
+    outline-color: #ff5d4a;
+    box-shadow:
+      inset 0 0 0 5px #ff5d4a,
+      0 0 0 4px rgba(255, 93, 74, 0.5),
+      0 22px 40px rgba(0, 0, 0, 0.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board.is-reject {
+    animation: none;
+    box-shadow:
+      inset 0 0 0 5px #ff5d4a,
+      0 0 0 4px rgba(255, 93, 74, 0.5),
+      0 22px 40px rgba(0, 0, 0, 0.35);
+    outline-color: #ff5d4a;
+  }
 }
 
 .die {
@@ -3316,6 +3354,7 @@ button.badge-card:focus-visible {
 .feedback {
   text-align: center;
   min-height: 24px;
+  font-size: 15px;
   font-weight: 800;
   color: var(--coral);
 }
