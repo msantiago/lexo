@@ -232,6 +232,12 @@ async function main() {
       skipped += 1;
       continue;
     }
+    // Nom propre (France, Seine, Pierre). La minuscule reste si c’est aussi
+    // un nom commun (seine, pierre, terre).
+    if (/^[A-ZÀÁÂÄÃÅÈÉÊËÌÍÎÏÒÓÔÖÕÙÚÛÜÝŸÇÑŒÆ]/.test(ortho)) {
+      skipped += 1;
+      continue;
+    }
 
     const key = fold(ortho);
     if (!/^[A-Z]+$/.test(key) || key.length < 2) {
