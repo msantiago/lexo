@@ -91,7 +91,8 @@ export default function Home({
   const wide = Boolean(info) || page === "users" || dailyOpen || (page === "account" && signedIn && !isPending);
   const openTab = (next: "landing" | "play" | "account" | "users") => {
     if (info) onExitInfo?.();
-    if (next !== "play") setDailyOpen(false);
+    if (next === "play" && dailyOpen) window.scrollTo({ top: 0, behavior: "smooth" });
+    setDailyOpen(false);
     setPage(next);
   };
 
