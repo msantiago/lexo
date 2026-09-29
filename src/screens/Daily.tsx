@@ -172,7 +172,7 @@ export default function Daily({ overview, onOverview, onBack, onTrail }: Props) 
           )}
         </section>
       ) : (
-        <button className="btn btn-gold daily-start" type="button" disabled={busy} onClick={() => void start()}>
+        <button className="btn btn-gold btn-lg daily-start" type="button" disabled={busy} onClick={() => void start()}>
           {overview.inProgress ? "Reprendre le Lexo du jour" : "Jouer le Lexo du jour"}
         </button>
       )}
@@ -425,7 +425,7 @@ function Leaderboard({ overview }: { overview: DailyOverview }) {
                 <DailySortHeader label="Indice" sortKey="rating" sort={sort} onSort={chooseSort} />
                 <DailySortHeader label="Jours" sortKey="plays" sort={sort} onSort={chooseSort} />
                 <DailySortHeader label="Moy." sortKey="average" sort={sort} onSort={chooseSort} />
-                <DailySortHeader label="Aujourd’hui" sortKey="today" sort={sort} onSort={chooseSort} />
+                <DailySortHeader label="Aujourd’hui" short="Auj." sortKey="today" sort={sort} onSort={chooseSort} />
               </tr>
             </thead>
             <tbody>
@@ -456,11 +456,13 @@ function Leaderboard({ overview }: { overview: DailyOverview }) {
 
 function DailySortHeader({
   label,
+  short,
   sortKey,
   sort,
   onSort,
 }: {
   label: string;
+  short?: string;
   sortKey: DailySortKey;
   sort: { key: DailySortKey; dir: DailySortDir };
   onSort: (key: DailySortKey) => void;
@@ -468,8 +470,17 @@ function DailySortHeader({
   const active = sort.key === sortKey;
   return (
     <th aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}>
-      <button type="button" onClick={() => onSort(sortKey)}>
-        {label}
+      <button type="button" onClick={() => onSort(sortKey)} aria-label={short ? label : undefined}>
+        {short ? (
+          <>
+            <span className="sort-long">{label}</span>
+            <span className="sort-short" aria-hidden="true">
+              {short}
+            </span>
+          </>
+        ) : (
+          label
+        )}
         {active && <span aria-hidden="true">{sort.dir === "asc" ? "↑" : "↓"}</span>}
       </button>
     </th>
@@ -541,10 +552,10 @@ function ArchiveList({ onOpen }: { onOpen: (day: string) => void }) {
             <thead>
               <tr>
                 <th>Date</th>
-                <th>Mots possibles</th>
-                <th>Points possibles</th>
+                <ArchiveHeader label="Mots possibles" short="Mots" />
+                <ArchiveHeader label="Points possibles" short="Points" />
                 <th>Joueurs</th>
-                <th>Meilleur score</th>
+                <ArchiveHeader label="Meilleur score" short="Record" />
               </tr>
             </thead>
             <tbody>
@@ -566,6 +577,17 @@ function ArchiveList({ onOpen }: { onOpen: (day: string) => void }) {
         </div>
       )}
     </div>
+  );
+}
+
+function ArchiveHeader({ label, short }: { label: string; short: string }) {
+  return (
+    <th aria-label={label}>
+      <span className="sort-long">{label}</span>
+      <span className="sort-short" aria-hidden="true">
+        {short}
+      </span>
+    </th>
   );
 }
 
