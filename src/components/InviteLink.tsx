@@ -19,7 +19,13 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-export default function InviteLink({ code }: { code: string }) {
+export default function InviteLink({
+  code,
+  label = "Invite tes amis avec ce lien",
+}: {
+  code: string;
+  label?: string;
+}) {
   const url = inviteUrl(code);
   const [status, setStatus] = useState<"idle" | "copied" | "select">("idle");
   const timer = useRef<number | null>(null);
@@ -61,7 +67,7 @@ export default function InviteLink({ code }: { code: string }) {
 
   return (
     <section className="invite-link" aria-label="Inviter des joueurs">
-      <p className="invite-link-label">Invite tes amis avec ce lien</p>
+      <p className="invite-link-label">{label}</p>
       <div className="invite-link-row">
         <input
           ref={field}

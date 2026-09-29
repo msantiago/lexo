@@ -3,6 +3,7 @@ import { roundHeadline } from "@shared/round";
 import type { Cell, RoomView } from "@shared/types";
 import Avatar from "../components/Avatar";
 import { BadgeButton } from "../components/BadgeDialog";
+import InviteLink from "../components/InviteLink";
 import WordTables, { PossibleWords } from "../components/WordTables";
 import LeaveButton from "../components/LeaveButton";
 import RoundChat from "../components/RoundChat";
@@ -130,6 +131,9 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
               </div>
             ))}
           </div>
+          {!solo && !room.observing && (
+            <InviteLink code={room.code} label="Invite d’autres joueurs pour la prochaine manche" />
+          )}
           {!solo && <RoundChat room={room} />}
         </div>
 
