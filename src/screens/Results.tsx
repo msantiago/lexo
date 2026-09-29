@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { roundHeadline } from "@shared/round";
 import type { Cell, RoomView } from "@shared/types";
+import Avatar from "../components/Avatar";
 import { BadgeButton } from "../components/BadgeDialog";
 import WordTables, { PossibleWords } from "../components/WordTables";
 import LeaveButton from "../components/LeaveButton";
@@ -34,7 +35,9 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
           {solo
             ? room.observing
               ? `${room.players[0]?.name ?? "Solo"} a terminé`
-              : "Bien joué !"
+              : (you?.roundScore ?? 0) > 0
+                ? "Bien joué !"
+                : "Pas de mot cette fois"
             : roundHeadline(room.players)}
         </h1>
         <p>
@@ -105,16 +108,14 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
               )}
             </div>
           </div>
-          <div className="podium" style={{ marginTop: 16 }}>
+          <div className="podium">
             {ranked.map((p, i) => (
               <div
                 className={`podium-item ${p.id === you?.id ? "you" : ""} ${p.connected ? "" : "offline"}`}
                 key={p.id}
               >
                 <div className="rank">{i + 1}</div>
-                <div className="avatar" style={{ background: p.color }}>
-                  {p.name.slice(0, 1).toUpperCase()}
-                </div>
+                <Avatar name={p.name} image={p.image} color={p.color} />
                 <div>
                   <strong>
                     {p.name}
@@ -125,17 +126,7 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
                     +{p.roundScore} cette manche · {p.wordCount} mot{p.wordCount > 1 ? "s" : ""}
                   </div>
                 </div>
-                <div
-                  className="pts"
-                  style={{
-                    marginLeft: "auto",
-                    fontFamily: "Fredoka, sans-serif",
-                    fontSize: 28,
-                    color: "var(--gold)",
-                  }}
-                >
-                  {p.totalScore}
-                </div>
+                <div className="podium-pts">{p.totalScore}</div>
               </div>
             ))}
           </div>

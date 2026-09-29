@@ -72,6 +72,7 @@ export type PlayerPublic = {
   id: string;
   name: string;
   color: string;
+  image: string | null;
   connected: boolean;
   roundScore: number;
   totalScore: number;

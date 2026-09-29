@@ -20,7 +20,7 @@ export default function Avatar({ name, image, className = "", color, online = fa
     face = preset ? (
       <span
         className={`${classes} avatar-emoji`}
-        style={{ background: color ?? preset.color }}
+        style={{ background: preset.color }}
         aria-hidden
       >
         {preset.emoji}

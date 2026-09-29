@@ -474,7 +474,7 @@ function RoomActions({
       {onObserve && <WatchButton onClick={onObserve} />}
       {canContinue && (
         <button type="button" className="btn btn-gold btn-compact" onClick={onJoin}>
-          Continuer ici
+          Reprendre
         </button>
       )}
       {!room.mine && !room.solo && <JoinButton label={joinLabel} disabled={!canJoin} onClick={onJoin} />}

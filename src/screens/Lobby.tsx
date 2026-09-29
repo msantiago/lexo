@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { GameSettings, RoomView } from "@shared/types";
 import { summarizeRules } from "@shared/rules";
+import Avatar from "../components/Avatar";
 import SettingsPanel from "../components/SettingsPanel";
 import LeaveButton from "../components/LeaveButton";
 import { primeSounds } from "../lib/sfx";
@@ -8,14 +9,12 @@ import { primeSounds } from "../lib/sfx";
 type Props = {
   room: RoomView;
   isHost: boolean;
-  admin?: boolean;
   onSettings: (settings: GameSettings) => void;
   onStart: () => void;
   onLeave: () => void;
-  onCloseRoom?: () => void;
 };
 
-export default function Lobby({ room, isHost, admin, onSettings, onStart, onLeave, onCloseRoom }: Props) {
+export default function Lobby({ room, isHost, onSettings, onStart, onLeave }: Props) {
   const [starting, setStarting] = useState(false);
   const canStart = isHost && !room.observing;
 
@@ -25,9 +24,7 @@ export default function Lobby({ room, isHost, admin, onSettings, onStart, onLeav
         <ul className="launch-faces">
           {room.players.map((player) => (
             <li className={player.connected ? "" : "offline"} key={player.id}>
-              <span className="avatar" style={{ background: player.color }}>
-                {player.name.slice(0, 1).toUpperCase()}
-              </span>
+              <Avatar name={player.name} image={player.image} color={player.color} />
               <strong>{player.name}</strong>
               {player.id === room.hostId && <span>Hôte</span>}
             </li>
@@ -38,7 +35,7 @@ export default function Lobby({ room, isHost, admin, onSettings, onStart, onLeav
           <p className="hint">Tu observes ce salon. La partie commencera sans toi.</p>
         ) : canStart ? (
           <button
-            className="btn btn-gold launch-go"
+            className="btn btn-gold btn-lg launch-go"
             disabled={starting}
             onClick={() => {
               if (starting) return;
@@ -61,7 +58,6 @@ export default function Lobby({ room, isHost, admin, onSettings, onStart, onLeav
 
       <div className="launch-links">
         <LeaveButton
-          quiet
           onLeave={onLeave}
           label="Quitter"
           title={room.observing ? "Arrêter d’observer ?" : "Quitter le salon ?"}
@@ -72,16 +68,6 @@ export default function Lobby({ room, isHost, admin, onSettings, onStart, onLeav
           }
           confirmLabel={room.observing ? "Arrêter" : "Quitter"}
         />
-        {admin && onCloseRoom && (
-          <LeaveButton
-            quiet
-            onLeave={onCloseRoom}
-            label="Fermer"
-            title="Fermer le salon ?"
-            message="La partie s’arrête tout de suite, pour toi et pour les autres joueurs."
-            confirmLabel="Fermer"
-          />
-        )}
       </div>
     </div>
   );
