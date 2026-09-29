@@ -2646,6 +2646,17 @@ button.badge-card:focus-visible {
   align-self: center;
 }
 
+.invite-share {
+  width: 42px;
+  min-height: 42px;
+  padding: 0;
+  flex: none;
+}
+
+.invite-share svg {
+  margin-top: -2px;
+}
+
 .launch-links {
   display: flex;
   flex-wrap: wrap;
