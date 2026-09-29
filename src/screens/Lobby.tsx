@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { GameSettings, RoomView } from "@shared/types";
 import { summarizeRules } from "@shared/rules";
 import Avatar from "../components/Avatar";
+import InviteLink from "../components/InviteLink";
 import SettingsPanel from "../components/SettingsPanel";
 import LeaveButton from "../components/LeaveButton";
 import { primeSounds } from "../lib/sfx";
@@ -49,6 +50,8 @@ export default function Lobby({ room, isHost, onSettings, onStart, onLeave }: Pr
           <p className="hint">En attente de l’hôte…</p>
         )}
       </header>
+
+      {!room.solo && !room.observing && <InviteLink code={room.code} />}
 
       {canStart ? (
         <SettingsPanel settings={room.settings} onChange={onSettings} />

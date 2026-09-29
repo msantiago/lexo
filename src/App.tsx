@@ -18,9 +18,12 @@ import {
   isPrivacyPath,
   isSignUpPath,
   isTermsPath,
+  SIGN_IN_PATH,
 } from "./lib/nav";
 import { socket } from "./socket";
 import { installAudioUnlock } from "./lib/sfx";
+import { authClient, displayNameFromUser } from "./lib/auth-client";
+import { clearInvite, takeInviteFromUrl } from "./lib/invite";
 
 const SESSION_KEY = "lexo:session";
 
@@ -40,15 +43,20 @@ function sameSession(a: Session | null, b: Session | null) {
 }
 
 export default function App() {
+  const [invite, setInvite] = useState(() => takeInviteFromUrl());
   const [path, setPath] = useState(() => window.location.pathname);
   const [name, setName] = useState(() => localStorage.getItem("lexo:name") ?? "");
   const [room, setRoom] = useState<RoomView | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(() => loadSession()?.playerId ?? null);
   const [toast, setToast] = useState<string | null>(null);
   const [admin, setAdmin] = useState(false);
+  const [connected, setConnected] = useState(socket.connected);
+  const { data: authSession, isPending: authPending } = authClient.useSession();
   const roomRef = useRef<RoomView | null>(null);
   const pendingRejoin = useRef<Session | null>(null);
   const toastTimer = useRef<number | null>(null);
+  const pendingInvite = useRef<string | null>(null);
+  const invitePromptedSignIn = useRef(false);
   roomRef.current = room;
 
   const showToast = (message: string, ms = 2800) => {
@@ -96,6 +104,7 @@ export default function App() {
     };
     const onSession = (session: Session) => {
       pendingRejoin.current = null;
+      pendingInvite.current = null;
       setPlayerId(session.playerId);
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
     };
@@ -104,6 +113,12 @@ export default function App() {
         goHome(message);
         return;
       }
+      if (pendingInvite.current && message === "Salon introuvable") {
+        pendingInvite.current = null;
+        showToast("Ce lien d’invitation n’est plus valable : le salon a été fermé.", 4000);
+        return;
+      }
+      pendingInvite.current = null;
       if (message === "Salon introuvable" || message === "Joueur introuvable") {
         const attempted = pendingRejoin.current;
         pendingRejoin.current = null;
@@ -124,6 +139,8 @@ export default function App() {
       goHome("Ce salon a été fermé");
     };
     const onRole = ({ admin: next }: { admin: boolean }) => setAdmin(Boolean(next));
+    const onConnect = () => setConnected(true);
+    const onDisconnect = () => setConnected(false);
     const tryRejoin = () => {
       if (isLegalPath(window.location.pathname)) return;
       const existing = loadSession();
@@ -138,6 +155,9 @@ export default function App() {
     socket.on("room:closed", onClosed);
     socket.on("notice", onError);
     socket.on("connect", tryRejoin);
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    setConnected(socket.connected);
     if (socket.connected) tryRejoin();
     const stopUnlock = installAudioUnlock();
 
@@ -149,9 +169,31 @@ export default function App() {
       socket.off("room:closed", onClosed);
       socket.off("notice", onError);
       socket.off("connect", tryRejoin);
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
       stopUnlock();
     };
   }, []);
+
+  const user = authSession?.user;
+  const legal = isLegalPath(path);
+
+  useEffect(() => {
+    if (!invite || authPending || legal) return;
+    if (!user) {
+      if (invitePromptedSignIn.current) return;
+      invitePromptedSignIn.current = true;
+      showToast("Connecte-toi pour rejoindre le salon.", 4000);
+      window.history.pushState({}, "", SIGN_IN_PATH);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      return;
+    }
+    if (!connected) return;
+    clearInvite();
+    setInvite(null);
+    pendingInvite.current = invite;
+    socket.emit("room:join", { code: invite, name: name || displayNameFromUser(user.name, user.email) });
+  }, [invite, authPending, legal, user, connected, name]);
 
   const leave = () => {
     const current = roomRef.current;
@@ -176,7 +218,6 @@ export default function App() {
   };
 
   const isHost = Boolean(room && playerId && room.hostId === playerId);
-  const legal = isLegalPath(path);
 
   return (
     <div className="app">
