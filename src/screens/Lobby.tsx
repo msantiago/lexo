@@ -1,8 +1,9 @@
+import { useState } from "react";
 import type { GameSettings, RoomView } from "@shared/types";
 import { summarizeRules } from "@shared/rules";
 import SettingsPanel from "../components/SettingsPanel";
 import LeaveButton from "../components/LeaveButton";
-import { unlockAudio } from "../lib/sfx";
+import { primeSounds } from "../lib/sfx";
 
 type Props = {
   room: RoomView;
@@ -15,6 +16,7 @@ type Props = {
 };
 
 export default function Lobby({ room, isHost, admin, onSettings, onStart, onLeave, onCloseRoom }: Props) {
+  const [starting, setStarting] = useState(false);
   const canStart = isHost && !room.observing;
 
   return (
@@ -37,9 +39,11 @@ export default function Lobby({ room, isHost, admin, onSettings, onStart, onLeav
         ) : canStart ? (
           <button
             className="btn btn-gold launch-go"
+            disabled={starting}
             onClick={() => {
-              unlockAudio();
-              onStart();
+              if (starting) return;
+              setStarting(true);
+              void primeSounds().then(() => onStart());
             }}
           >
             {room.players.length === 1 ? "C’est parti" : `C’est parti · ${room.players.length}`}

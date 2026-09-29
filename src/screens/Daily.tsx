@@ -29,6 +29,7 @@ import {
   playLetterBack,
   playLetterSelect,
   playScoreSound,
+  primeSounds,
   unlockAudio,
 } from "../lib/sfx";
 
@@ -82,8 +83,8 @@ export default function Daily({ overview, onOverview, onBack, onTrail }: Props) 
   const start = async () => {
     setError(null);
     setBusy(true);
-    unlockAudio();
     try {
+      await primeSounds();
       const res = await fetch("/api/daily/start", { method: "POST", credentials: "include" });
       const data = (await res.json()) as { play?: DailyPlayState; done?: DailyOverview; error?: string };
       if (!res.ok) {
