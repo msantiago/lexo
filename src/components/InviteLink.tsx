@@ -24,7 +24,10 @@ export default function InviteLink({ code }: { code: string }) {
   const [status, setStatus] = useState<"idle" | "copied" | "select">("idle");
   const timer = useRef<number | null>(null);
   const field = useRef<HTMLInputElement>(null);
-  const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
+  const canShare =
+    typeof navigator !== "undefined" && typeof navigator.share === "function";
+  const mobileShare =
+    canShare && window.matchMedia("(pointer: coarse)").matches;
 
   useEffect(
     () => () => {
@@ -46,7 +49,11 @@ export default function InviteLink({ code }: { code: string }) {
 
   const share = async () => {
     try {
-      await navigator.share({ title: "Lexo", text: "Rejoins ma partie de Lexo !", url });
+      await navigator.share({
+        title: "Lexo",
+        text: "Rejoins ma partie de Lexo !",
+        url,
+      });
     } catch (error) {
       if ((error as DOMException)?.name !== "AbortError") void copy();
     }
@@ -64,15 +71,61 @@ export default function InviteLink({ code }: { code: string }) {
           aria-label="Lien d’invitation"
           onFocus={(event) => event.currentTarget.select()}
         />
-        <button type="button" className="btn btn-ghost" onClick={() => void copy()}>
-          {status === "copied" ? "Lien copié" : status === "select" ? "Lien sélectionné" : "Copier le lien"}
-        </button>
-        {canShare && (
-          <button type="button" className="btn btn-ivory" onClick={() => void share()}>
-            Partager
+        {mobileShare ? (
+          <button
+            type="button"
+            className="btn btn-ivory invite-share"
+            onClick={() => void share()}
+            aria-label="Partager le lien"
+            title="Partager le lien"
+          >
+            <ShareIcon />
           </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => void copy()}
+            >
+              {status === "copied"
+                ? "Lien copié"
+                : status === "select"
+                  ? "Lien sélectionné"
+                  : "Copier le lien"}
+            </button>
+            {canShare && (
+              <button
+                type="button"
+                className="btn btn-ivory"
+                onClick={() => void share()}
+              >
+                Partager
+              </button>
+            )}
+          </>
         )}
       </div>
     </section>
+  );
+}
+
+function ShareIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="20"
+      height="20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 3v12" />
+      <path d="M8 7l4-4 4 4" />
+      <path d="M8 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-2" />
+    </svg>
   );
 }
