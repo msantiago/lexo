@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { roundHeadline } from "@shared/round";
 import type { Cell, RoomView } from "@shared/types";
 import { BadgeButton } from "../components/BadgeDialog";
 import WordTables, { PossibleWords } from "../components/WordTables";
 import LeaveButton from "../components/LeaveButton";
 import RoundChat from "../components/RoundChat";
+import { primeSounds } from "../lib/sfx";
 import { socket } from "../socket";
 
 type Props = {
@@ -16,6 +18,7 @@ type Props = {
 };
 
 export default function Results({ room, isHost, admin, onNext, onLeave, onCloseRoom }: Props) {
+  const [starting, setStarting] = useState(false);
   const ranked = [...room.players].sort(
     (a, b) => b.totalScore - a.totalScore || b.roundScore - a.roundScore,
   );
@@ -65,7 +68,16 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
               {room.observing ? (
                 <p className="hint">Tu observes la synthèse de cette manche.</p>
               ) : isHost ? (
-                <button type="button" className="btn btn-gold" onClick={onNext}>
+                <button
+                  type="button"
+                  className="btn btn-gold"
+                  disabled={starting}
+                  onClick={() => {
+                    if (starting) return;
+                    setStarting(true);
+                    void primeSounds().then(() => onNext());
+                  }}
+                >
                   Manche suivante
                 </button>
               ) : (

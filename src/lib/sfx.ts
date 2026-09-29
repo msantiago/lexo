@@ -3,6 +3,7 @@ let master: GainNode | null = null;
 let htmlReady = false;
 const html: Partial<Record<"score" | "scoreBig" | "scoreEpic" | "fail" | "stolen", HTMLAudioElement>> =
   {};
+let countAudio: HTMLAudioElement[] | null = null;
 
 const isIOS =
   typeof navigator !== "undefined" &&
@@ -162,13 +163,62 @@ function makeHtml(src: string) {
   return el;
 }
 
+function ensureElements() {
+  if (!html.score) html.score = makeHtml(WAV.score);
+  if (!html.scoreBig) html.scoreBig = makeHtml(WAV.scoreBig);
+  if (!html.scoreEpic) html.scoreEpic = makeHtml(WAV.scoreEpic);
+  if (!html.fail) html.fail = makeHtml(WAV.fail);
+  if (!html.stolen) html.stolen = makeHtml(WAV.stolen);
+  if (!countAudio) countAudio = COUNT_WAV.map(makeHtml);
+}
+
+function whenCanPlay(el: HTMLAudioElement): Promise<void> {
+  if (el.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => {
+      el.removeEventListener("canplaythrough", done);
+      el.removeEventListener("error", done);
+      resolve();
+    };
+    el.addEventListener("canplaythrough", done);
+    el.addEventListener("error", done);
+    if (el.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+      done();
+      return;
+    }
+    if (el.readyState !== HTMLMediaElement.HAVE_NOTHING) return;
+    try {
+      el.load();
+    } catch {
+      done();
+    }
+  });
+}
+
+let soundsReady = false;
+let soundsLoading: Promise<void> | null = null;
+
+function loadSounds(): Promise<void> {
+  if (soundsReady) return Promise.resolve();
+  if (!soundsLoading) {
+    ensureElements();
+    const els = [html.score, html.scoreBig, html.scoreEpic, html.fail, html.stolen, ...(countAudio ?? [])].filter(
+      (el): el is HTMLAudioElement => !!el,
+    );
+    soundsLoading = Promise.race([
+      Promise.all(els.map(whenCanPlay)),
+      new Promise<void>((resolve) => window.setTimeout(resolve, 1000)),
+    ]).then(() => {
+      soundsReady = true;
+      soundsLoading = null;
+    });
+  }
+  return soundsLoading;
+}
+
 function warmHtml() {
+  ensureElements();
   if (htmlReady) return;
-  html.score = makeHtml(WAV.score);
-  html.scoreBig = makeHtml(WAV.scoreBig);
-  html.scoreEpic = makeHtml(WAV.scoreEpic);
-  html.fail = makeHtml(WAV.fail);
-  html.stolen = makeHtml(WAV.stolen);
   const silent = makeHtml(WAV.silent);
   silent.volume = 0.01;
   const play = silent.play();
@@ -184,6 +234,12 @@ function warmHtml() {
   } else {
     htmlReady = true;
   }
+}
+
+/** Décode les sons avant le compte à rebours, pour qu’ils partent avec le chiffre. */
+export function primeSounds(): Promise<void> {
+  unlockAudio();
+  return loadSounds();
 }
 
 function playHtml(name: keyof typeof html) {
@@ -276,21 +332,19 @@ export function playStolenSound() {
   playOsc(311.13, 0.3, 0.18, "triangle", 246.94);
 }
 
-let countAudio: HTMLAudioElement[] | null = null;
-
 export function playCountdownSound(step: number) {
-  warmHtml();
-  if (!countAudio) countAudio = COUNT_WAV.map(makeHtml);
-  const el = countAudio[Math.min(Math.max(step, 0), countAudio.length - 1)];
+  ensureElements();
+  const clips = countAudio ?? [];
+  const el = clips[Math.min(Math.max(step, 0), clips.length - 1)];
   if (!el) return;
   try {
-    el.currentTime = 0;
+    if (el.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) el.currentTime = 0;
     const play = el.play();
     if (play) void play.catch(() => {});
   } catch {
     /* ignore */
   }
-  haptic(step >= countAudio.length - 1 ? [12, 28, 16] : 8);
+  haptic(step >= clips.length - 1 ? [12, 28, 16] : 8);
 }
 
 export function playLetterSelect(step: number) {
@@ -306,6 +360,7 @@ export function playLetterBack() {
 export function unlockAudio() {
   try {
     warmHtml();
+    void loadSounds();
     const ctx = context();
     if (!ctx) return;
     if (ctx.state === "suspended") void ctx.resume();
@@ -313,6 +368,8 @@ export function unlockAudio() {
     /* ignore */
   }
 }
+
+if (typeof window !== "undefined") void loadSounds();
 
 export function installAudioUnlock() {
   const onClick = () => unlockAudio();
