@@ -155,11 +155,16 @@ function clampSettings(input: Partial<GameSettings> | undefined): GameSettings {
   };
 }
 
-function publicPlayer(p: Player, extras?: { words?: FoundWord[]; path?: number[] }): PlayerPublic {
+function publicPlayer(
+  p: Player,
+  images: Map<string, string | null>,
+  extras?: { words?: FoundWord[]; path?: number[] },
+): PlayerPublic {
   return {
     id: p.id,
     name: p.name,
     color: p.color,
+    image: p.userId ? (images.get(p.userId) ?? null) : null,
     connected: p.socketId !== null,
     roundScore: p.roundScore,
     totalScore: p.totalScore,
@@ -379,6 +384,9 @@ function isSolo(room: Room) {
 
 export function viewFor(room: Room, viewerId: string, observing = false): RoomView {
   const you = observing ? undefined : room.players.find((p) => p.id === viewerId);
+  const images = findAuthImages(
+    room.players.map((p) => p.userId).filter((id): id is string => Boolean(id)),
+  );
   return {
     code: room.code,
     hostId: room.hostId,
@@ -388,6 +396,7 @@ export function viewFor(room: Room, viewerId: string, observing = false): RoomVi
     players: room.players.map((p) =>
       publicPlayer(
         p,
+        images,
         observing
           ? { words: p.words, path: room.traces.get(p.id) ?? [] }
           : undefined,

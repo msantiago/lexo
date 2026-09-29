@@ -1,4 +1,5 @@
 import type { PlayerPublic } from "@shared/types";
+import Avatar from "./Avatar";
 
 type SharedProps = {
   players: PlayerPublic[];
@@ -57,9 +58,7 @@ export default function Scoreboard({
         const hidden = hideOtherStats(p.id, youId, showOtherScores);
         return (
           <div className={`score-row ${p.connected ? "" : "offline"}`} key={p.id}>
-            <div className="avatar" style={{ background: p.color }}>
-              {p.name.slice(0, 1).toUpperCase()}
-            </div>
+            <Avatar name={p.name} image={p.image} color={p.color} />
             <div className="meta">
               <strong>
                 {p.name}
@@ -96,9 +95,7 @@ export function ScorePills({
         const hidden = hideOtherStats(p.id, youId, showOtherScores);
         return (
           <div className={`pill ${p.connected ? "" : "offline"}`} key={p.id}>
-            <div className="avatar" style={{ background: p.color, width: 28, height: 28, fontSize: 13 }}>
-              {p.name.slice(0, 1).toUpperCase()}
-            </div>
+            <Avatar name={p.name} image={p.image} color={p.color} className="avatar-sm" />
             <strong>{p.id === youId ? "Toi" : p.name}</strong>
             <span className={hidden ? "hidden" : undefined}>{hidden ? "—" : p.roundScore}</span>
           </div>

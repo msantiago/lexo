@@ -225,11 +225,9 @@ export default function App() {
         <Lobby
           room={room}
           isHost={isHost}
-          admin={admin}
           onSettings={(settings: GameSettings) => socket.emit("room:settings", settings)}
           onStart={() => socket.emit("game:start")}
           onLeave={leave}
-          onCloseRoom={() => closeRoom(room.code)}
         />
       )}
       {!legal && room?.phase === "playing" && (

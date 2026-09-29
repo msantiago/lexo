@@ -8,7 +8,6 @@ type Props = {
   message: string;
   confirmLabel?: string;
   compact?: boolean;
-  quiet?: boolean;
 };
 
 export default function LeaveButton({
@@ -18,7 +17,6 @@ export default function LeaveButton({
   message,
   confirmLabel,
   compact = false,
-  quiet = false,
 }: Props) {
   const [open, setOpen] = useState(false);
 
@@ -26,7 +24,7 @@ export default function LeaveButton({
     <>
       <button
         type="button"
-        className={quiet ? "text-action" : `btn btn-ghost${compact ? " btn-compact" : ""}`}
+        className={`btn btn-ghost${compact ? " btn-compact" : ""}`}
         onClick={() => setOpen(true)}
       >
         {label}
