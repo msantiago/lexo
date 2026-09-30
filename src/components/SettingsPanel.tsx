@@ -5,10 +5,12 @@ import { formatDuration } from "../lib/format";
 type Props = {
   settings: GameSettings;
   disabled?: boolean;
+  /** Affiche objectif et rejoindre en cours (salon multi uniquement). */
+  multiplayer?: boolean;
   onChange: (next: GameSettings) => void;
 };
 
-export default function SettingsPanel({ settings, disabled, onChange }: Props) {
+export default function SettingsPanel({ settings, disabled, multiplayer, onChange }: Props) {
   const [more, setMore] = useState(false);
   const set = (patch: Partial<GameSettings>) => onChange({ ...settings, ...patch });
 
@@ -49,6 +51,71 @@ export default function SettingsPanel({ settings, disabled, onChange }: Props) {
           ))}
         </div>
       </div>
+
+      {multiplayer && (
+        <>
+          <div className="rule">
+            <div className="rule-top">
+              <span>Objectif</span>
+            </div>
+            <div className="segment" role="radiogroup" aria-label="Type d’objectif">
+              <Segment
+                on={settings.objective === "rounds"}
+                disabled={disabled}
+                onClick={() => set({ objective: "rounds" })}
+              >
+                {`${settings.maxRounds} manches`}
+              </Segment>
+              <Segment
+                on={settings.objective === "score"}
+                disabled={disabled}
+                onClick={() => set({ objective: "score" })}
+              >
+                {`${settings.targetScore} pts`}
+              </Segment>
+            </div>
+            {settings.objective === "rounds" ? (
+              <input
+                className="rule-subsegment"
+                type="range"
+                min={3}
+                max={20}
+                step={1}
+                disabled={disabled}
+                value={settings.maxRounds}
+                aria-label="Nombre de manches"
+                onChange={(e) => set({ maxRounds: Number(e.target.value) })}
+              />
+            ) : (
+              <input
+                className="rule-subsegment"
+                type="range"
+                min={50}
+                max={500}
+                step={10}
+                disabled={disabled}
+                value={settings.targetScore}
+                aria-label="Score à atteindre"
+                onChange={(e) => set({ targetScore: Number(e.target.value) })}
+              />
+            )}
+          </div>
+
+          <div className="rule">
+            <SwitchRow
+              label="Rejoindre en cours"
+              hint={
+                settings.allowJoinMidGame
+                  ? "De nouveaux joueurs pourront arriver après le lancement."
+                  : "Personne ne pourra rejoindre une fois la partie lancée."
+              }
+              on={settings.allowJoinMidGame}
+              disabled={disabled}
+              onClick={() => set({ allowJoinMidGame: !settings.allowJoinMidGame })}
+            />
+          </div>
+        </>
+      )}
 
       <button
         type="button"
@@ -167,7 +234,7 @@ export default function SettingsPanel({ settings, disabled, onChange }: Props) {
         </div>
       )}
 
-      <p className="rules-score">Q = Qu · 4 lettres = 1 pt, puis +1 · mot partagé = 0</p>
+      <p className="rules-score">Qu = Q ou Qu · 4 lettres = 1 pt, puis +1 · mot partagé = 0</p>
     </section>
   );
 }
@@ -205,18 +272,23 @@ function Segment({
 
 function SwitchRow({
   label,
+  hint,
   on,
   disabled,
   onClick,
 }: {
   label: string;
+  hint?: string;
   on: boolean;
   disabled?: boolean;
   onClick: () => void;
 }) {
   return (
     <button type="button" className="rule-switch" disabled={disabled} onClick={onClick}>
-      <span>{label}</span>
+      <span className="rule-switch-copy">
+        <span className="rule-switch-label">{label}</span>
+        {hint && <span className="rules-hint rule-switch-hint">{hint}</span>}
+      </span>
       <span className={`switch ${on ? "on" : ""}`} aria-hidden>
         <i />
       </span>

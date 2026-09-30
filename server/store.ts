@@ -38,6 +38,7 @@ import type {
   RoundSummary,
   WordRecap,
 } from "../shared/types.ts";
+import { DEFAULT_SETTINGS } from "../shared/types.ts";
 
 export type RoundSnapshot = {
   gameId: string | null;
@@ -562,17 +563,7 @@ export function listGames(userId: string): GameHistoryItem[] {
   }[];
 
   return rows.map((row) => {
-    const settings = parseJson<GameSettings>(row.settings_json, {
-      durationSec: 180,
-      minLetters: 4,
-      allowPlurals: false,
-      allowFeminines: false,
-      conjugations: "participles",
-      allowPastParticiple: true,
-      allowPresentParticiple: true,
-      difficulty: "medium",
-      letterOrientation: "upright",
-    });
+    const settings = parseJson<GameSettings>(row.settings_json, DEFAULT_SETTINGS);
     const players = previewPlayers(row.preview_json, userId);
     const preview = parseJson<{ roundCount?: number }>(row.preview_json, {});
     return {
@@ -629,17 +620,7 @@ export function getGame(userId: string, gameId: string): GameHistoryDetail | nul
     id: game.id,
     solo: Boolean(game.solo),
     createdAt: game.created_at,
-    settings: parseJson<GameSettings>(game.settings_json, {
-      durationSec: 180,
-      minLetters: 4,
-      allowPlurals: false,
-      allowFeminines: false,
-      conjugations: "participles",
-      allowPastParticiple: true,
-      allowPresentParticiple: true,
-      difficulty: "medium",
-      letterOrientation: "upright",
-    }),
+    settings: parseJson<GameSettings>(game.settings_json, DEFAULT_SETTINGS),
     rounds: rounds.map((round) => {
       const people = playerStmt.all(round.id) as {
         user_id: string | null;

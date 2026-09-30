@@ -382,7 +382,7 @@ function DailyPlay({
           />
         </CountdownGate>
         <p className={`preview ${preview ? "" : "empty"}`}>{preview || "Glisse ou tape un mot"}</p>
-        <p className="hint">Clavier · Entrée pour valider · Q = Qu</p>
+        <p className="hint">Clavier · Entrée pour valider · Qu = Q ou Qu</p>
         <WordList words={play.words.map((word) => ({ ...word, shared: false }))} />
       </div>
     </div>

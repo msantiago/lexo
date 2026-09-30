@@ -13,6 +13,9 @@ export type GridDifficulty = "very-easy" | "easy" | "medium" | "hard";
 
 export type LetterOrientation = "upright" | "shuffle";
 
+/** Objectif d'une partie à plusieurs : nombre de manches ou score à atteindre. */
+export type MatchObjective = "rounds" | "score";
+
 export type DieRotation = 0 | 90 | 180 | 270;
 
 export type GameSettings = {
@@ -25,6 +28,14 @@ export type GameSettings = {
   allowPresentParticiple: boolean;
   difficulty: GridDifficulty;
   letterOrientation: LetterOrientation;
+  /** Fin de partie multi : manches ou points. Ignoré en solo. */
+  objective: MatchObjective;
+  /** Quand objective === "rounds". */
+  maxRounds: number;
+  /** Quand objective === "score". */
+  targetScore: number;
+  /** Autoriser de nouveaux joueurs une fois la partie lancée. */
+  allowJoinMidGame: boolean;
 };
 
 export const DIFFICULTY_BANDS: Record<GridDifficulty, { min: number; max: number }> = {
@@ -51,6 +62,10 @@ export const DEFAULT_SETTINGS: GameSettings = {
   allowPresentParticiple: true,
   difficulty: "medium",
   letterOrientation: "upright",
+  objective: "rounds",
+  maxRounds: 3,
+  targetScore: 100,
+  allowJoinMidGame: true,
 };
 
 export type Cell = {
@@ -103,6 +118,7 @@ export type LobbyRoom = {
   playerCount: number;
   difficulty: GridDifficulty;
   solo: boolean;
+  allowJoinMidGame: boolean;
   /** This account already has a seat. Continuing here is an explicit choice. */
   mine?: boolean;
   players: LobbyPlayer[];
@@ -200,6 +216,8 @@ export type RoomView = {
   startedAt: number | null;
   endsAt: number | null;
   solo: boolean;
+  /** Objectif multi atteint : plus de manche suivante, l'hôte peut relancer. */
+  matchOver: boolean;
   observing: boolean;
   you: {
     id: string;

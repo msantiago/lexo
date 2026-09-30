@@ -71,6 +71,15 @@ function step(node: TrieNode, letter: string): TrieNode | undefined {
   return next;
 }
 
+function quSteps(node: TrieNode): Array<{ node: TrieNode; letters: number }> {
+  const out: Array<{ node: TrieNode; letters: number }> = [];
+  const asQ = step(node, "Q");
+  if (asQ) out.push({ node: asQ, letters: 1 });
+  const asQU = step(node, "QU");
+  if (asQU) out.push({ node: asQU, letters: 2 });
+  return out;
+}
+
 function collectWords(grid: Cell[], settings: GameSettings): PossibleWord[] {
   const hits = new Map<string, PossibleWord>();
   const seen = new Set<string>();
@@ -92,16 +101,30 @@ function collectWords(grid: Cell[], settings: GameSettings): PossibleWord[] {
     }
     for (const next of ADJ[index]) {
       if (used & (1 << next)) continue;
-      const child = step(node, grid[next].letter);
+      const cell = grid[next];
+      if (cell.letter === "QU") {
+        for (const branch of quSteps(node)) {
+          dfs(next, used | (1 << next), branch.node, letters + branch.letters);
+        }
+        continue;
+      }
+      const child = step(node, cell.letter);
       if (!child) continue;
-      dfs(next, used | (1 << next), child, letters + grid[next].letterCount);
+      dfs(next, used | (1 << next), child, letters + cell.letterCount);
     }
   };
 
   for (let i = 0; i < 16; i++) {
-    const node = step(TRIE, grid[i].letter);
+    const cell = grid[i];
+    if (cell.letter === "QU") {
+      for (const branch of quSteps(TRIE)) {
+        dfs(i, 1 << i, branch.node, branch.letters);
+      }
+      continue;
+    }
+    const node = step(TRIE, cell.letter);
     if (!node) continue;
-    dfs(i, 1 << i, node, grid[i].letterCount);
+    dfs(i, 1 << i, node, cell.letterCount);
   }
 
   return [...hits.values()];

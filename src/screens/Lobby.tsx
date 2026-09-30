@@ -54,9 +54,9 @@ export default function Lobby({ room, isHost, onSettings, onStart, onLeave }: Pr
       {!room.solo && !room.observing && <InviteLink code={room.code} />}
 
       {canStart ? (
-        <SettingsPanel settings={room.settings} onChange={onSettings} />
+        <SettingsPanel settings={room.settings} multiplayer={!room.solo} onChange={onSettings} />
       ) : (
-        <p className="launch-summary">{summarizeRules(room.settings)}</p>
+        <p className="launch-summary">{summarizeRules(room.settings, !room.solo)}</p>
       )}
 
       <div className="launch-links">

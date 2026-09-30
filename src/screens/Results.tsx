@@ -15,11 +15,12 @@ type Props = {
   isHost: boolean;
   admin?: boolean;
   onNext: () => void;
+  onRematch: () => void;
   onLeave: () => void;
   onCloseRoom?: () => void;
 };
 
-export default function Results({ room, isHost, admin, onNext, onLeave, onCloseRoom }: Props) {
+export default function Results({ room, isHost, admin, onNext, onRematch, onLeave, onCloseRoom }: Props) {
   const [starting, setStarting] = useState(false);
   const ranked = [...room.players].sort(
     (a, b) => b.totalScore - a.totalScore || b.roundScore - a.roundScore,
@@ -27,11 +28,12 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
   const solo = room.players.length === 1;
   const you = room.players.find((p) => p.id === room.you.id);
   const summary = room.summary;
+  const matchOver = room.matchOver;
 
   return (
     <div className="screen results">
       <div className="results-head">
-        <p className="times-up-label">Temps écoulé</p>
+        <p className="times-up-label">{matchOver ? "Partie terminée" : "Temps écoulé"}</p>
         <h1>
           {solo
             ? room.observing
@@ -47,6 +49,18 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
           ) : you ? (
             <>
               Cette manche : <b>{you.roundScore} pts</b> · Total : <b>{you.totalScore} pts</b>
+              {!solo && room.settings.objective === "rounds" && (
+                <>
+                  {" "}
+                  · Manche {room.round}/{room.settings.maxRounds}
+                </>
+              )}
+              {!solo && room.settings.objective === "score" && (
+                <>
+                  {" "}
+                  · Objectif {room.settings.targetScore} pts
+                </>
+              )}
             </>
           ) : null}
         </p>
@@ -70,7 +84,11 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
             {room.grid && <MiniGrid grid={room.grid} />}
             <div className="results-actions">
               {room.observing ? (
-                <p className="hint">Tu observes la synthèse de cette manche.</p>
+                <p className="hint">
+                  {matchOver
+                    ? "Tu observes la fin de cette partie."
+                    : "Tu observes la synthèse de cette manche."}
+                </p>
               ) : isHost ? (
                 <button
                   type="button"
@@ -79,13 +97,17 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
                   onClick={() => {
                     if (starting) return;
                     setStarting(true);
-                    void primeSounds().then(() => onNext());
+                    void primeSounds().then(() => (matchOver ? onRematch() : onNext()));
                   }}
                 >
-                  Manche suivante
+                  {matchOver ? "Nouvelle partie" : "Manche suivante"}
                 </button>
               ) : (
-                <p className="hint">En attente de l’hôte pour la manche suivante…</p>
+                <p className="hint">
+                  {matchOver
+                    ? "En attente de l’hôte pour une nouvelle partie…"
+                    : "En attente de l’hôte pour la manche suivante…"}
+                </p>
               )}
               <LeaveButton
                 onLeave={onLeave}
@@ -131,7 +153,7 @@ export default function Results({ room, isHost, admin, onNext, onLeave, onCloseR
               </div>
             ))}
           </div>
-          {!solo && !room.observing && (
+          {!solo && !room.observing && room.settings.allowJoinMidGame && !matchOver && (
             <InviteLink code={room.code} label="Invite d’autres joueurs pour la prochaine manche" />
           )}
           {!solo && <RoundChat room={room} />}

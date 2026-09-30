@@ -25,6 +25,7 @@ export type ClientToServer = {
   "room:leave": () => void;
   "room:close": (data: { code: string }) => void;
   "game:start": () => void;
+  "game:rematch": () => void;
   "game:word": (data: { cells: number[] }) => void;
   "game:trace": (data: { cells: number[] }) => void;
   "dict:add": (data: { key: string }) => void;

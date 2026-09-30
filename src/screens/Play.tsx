@@ -291,7 +291,11 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
     <div className="screen play">
       <div className="play-top">
         <div className="play-top-meta">
-          <div className="muted">Manche {room.round}</div>
+          <div className="muted">
+            {room.solo || room.settings.objective !== "rounds"
+              ? `Manche ${room.round}`
+              : `Manche ${room.round}/${room.settings.maxRounds}`}
+          </div>
           <div className="muted">{room.code}</div>
           {observing && <div className="observe-badge">Observateur</div>}
         </div>
@@ -302,7 +306,7 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
               onLeave={onCloseRoom}
               label="Fermer"
               title="Fermer cette partie ?"
-              message="Elle s’arrête pour tous les joueurs, y compris ceux qui sont en train de jouer."
+              message="La partie s’arrête tout de suite, pour toi et pour les autres joueurs."
               confirmLabel="Fermer"
               compact
             />
@@ -408,7 +412,7 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
             ? watchPinned
               ? `Tu suis ${watched?.name ?? "un joueur"} — clique un autre prénom pour changer`
               : "Les traces s’affichent en direct"
-            : "Clavier · Entrée pour valider · Q = Qu"}
+            : "Clavier · Entrée pour valider · Qu = Q ou Qu"}
         </p>
       </div>
 

@@ -83,15 +83,41 @@ export function isValidPath(cells: number[]): boolean {
   return true;
 }
 
+/**
+ * Lecture d’une face Qu dans un chemin :
+ * - suivie d’un U (autre case) → Q seul (ex. Qu+U = QU)
+ * - en fin de chemin → Q seul (ex. COQ)
+ * - sinon → Qu (ex. Qu+I = QUI)
+ */
+export function quContribution(
+  grid: Cell[],
+  cells: number[],
+  index: number,
+): { key: string; display: string; letters: number } {
+  const next = cells[index + 1];
+  const nextIsU = next !== undefined && grid[next]?.letter === "U";
+  if (nextIsU || index === cells.length - 1) {
+    return { key: "Q", display: "Q", letters: 1 };
+  }
+  return { key: "QU", display: "Qu", letters: 2 };
+}
+
 export function pathToWord(grid: Cell[], cells: number[]) {
   let key = "";
   let display = "";
   let letters = 0;
-  for (const i of cells) {
-    const cell = grid[i];
-    key += cell.letter;
-    display += cell.display;
-    letters += cell.letterCount;
+  for (let i = 0; i < cells.length; i++) {
+    const cell = grid[cells[i]];
+    if (cell.letter === "QU") {
+      const part = quContribution(grid, cells, i);
+      key += part.key;
+      display += part.display;
+      letters += part.letters;
+    } else {
+      key += cell.letter;
+      display += cell.display;
+      letters += cell.letterCount;
+    }
   }
   return { key, display, letters };
 }
@@ -134,7 +160,11 @@ export function foldKey(key: string): string | null {
   return /^[A-Z]$/.test(folded) ? folded : null;
 }
 
-/** First valid Boggle path whose cells spell `target` (e.g. QU + I → "QUI"). */
+function cellExpansions(letter: string): string[] {
+  return letter === "QU" ? ["Q", "QU"] : [letter];
+}
+
+/** First valid Boggle path whose cells spell `target` (e.g. Qu+I → "QUI", Qu+U → "QU"). */
 export function findPathForWord(grid: Cell[], target: string): number[] | null {
   if (!target) return [];
   const dfs = (path: number[], built: string): number[] | null => {
@@ -143,10 +173,12 @@ export function findPathForWord(grid: Cell[], target: string): number[] | null {
     const nexts = path.length === 0 ? grid.map((_, i) => i) : neighbors(last);
     for (const i of nexts) {
       if (path.includes(i)) continue;
-      const next = built + grid[i].letter;
-      if (!target.startsWith(next)) continue;
-      const hit = dfs([...path, i], next);
-      if (hit) return hit;
+      for (const part of cellExpansions(grid[i].letter)) {
+        const next = built + part;
+        if (!target.startsWith(next)) continue;
+        const hit = dfs([...path, i], next);
+        if (hit) return hit;
+      }
     }
     return null;
   };
@@ -154,8 +186,9 @@ export function findPathForWord(grid: Cell[], target: string): number[] | null {
 }
 
 /**
- * Try to add a typed letter. Q becomes Qu. A U after Qu is kept only if a
- * separate U cell can be used; otherwise it is ignored as already in Qu.
+ * Try to add a typed letter. Q may be Q seul (COQ) or Qu (QUI).
+ * A U after Qu is kept only if a separate U cell can be used; otherwise it is
+ * ignored as already in Qu.
  */
 export function extendTypedWord(
   grid: Cell[],
@@ -163,8 +196,10 @@ export function extendTypedWord(
   letter: string,
 ): string | null {
   if (letter === "Q") {
-    const next = typed + "QU";
-    return findPathForWord(grid, next) ? next : null;
+    for (const next of [typed + "Q", typed + "QU"]) {
+      if (findPathForWord(grid, next)) return next;
+    }
+    return null;
   }
   const next = typed + letter;
   if (findPathForWord(grid, next)) return next;
