@@ -155,7 +155,26 @@ export function migrateStore() {
       message TEXT NOT NULL,
       user_id TEXT
     );
+    CREATE TABLE IF NOT EXISTS user_settings (
+      user_id TEXT PRIMARY KEY,
+      settings_json TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
   `);
+}
+
+export function loadUserSettings(userId: string): Partial<GameSettings> | null {
+  const row = db.prepare(`SELECT settings_json FROM user_settings WHERE user_id = ?`).get(userId) as
+    | { settings_json: string }
+    | undefined;
+  return row ? parseJson<Partial<GameSettings> | null>(row.settings_json, null) : null;
+}
+
+export function saveUserSettings(userId: string, settings: GameSettings) {
+  db.prepare(
+    `INSERT INTO user_settings (user_id, settings_json, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET settings_json = excluded.settings_json, updated_at = excluded.updated_at`,
+  ).run(userId, JSON.stringify(settings), Date.now());
 }
 
 export function saveContactMessage(entry: {

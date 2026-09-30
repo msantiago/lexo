@@ -26,7 +26,13 @@ import { joinNames, leadersByRoundScore } from "../shared/round.ts";
 import { addCustomWord, lookupWord } from "./dictionary.ts";
 import { findAllWords, rollPlayableGrid } from "./solver.ts";
 import { findAuthImages } from "./auth.ts";
-import { awardLexicographer, recordFinishedRound, type RoundSnapshot } from "./store.ts";
+import {
+  awardLexicographer,
+  loadUserSettings,
+  recordFinishedRound,
+  saveUserSettings,
+  type RoundSnapshot,
+} from "./store.ts";
 
 type Player = {
   id: string;
@@ -790,7 +796,7 @@ export function createRoom(
     solo,
     phase: "lobby",
     round: 0,
-    settings: { ...DEFAULT_SETTINGS },
+    settings: clampSettings(loadUserSettings(userId) ?? undefined),
     players: [player],
     grid: null,
     startedAt: null,
@@ -1068,6 +1074,7 @@ export async function startGame(socketId: string) {
   if (room.phase === "playing" || rolling.has(room)) {
     return { error: "La manche est déjà lancée" as const };
   }
+  if (player.userId) saveUserSettings(player.userId, room.settings);
   rolling.add(room);
   try {
     await beginRound(room);
