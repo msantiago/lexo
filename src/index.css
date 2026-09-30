@@ -4598,6 +4598,18 @@ button.badge-card:focus-visible {
   margin-bottom: 0;
 }
 
+.users-modes {
+  justify-self: start;
+  width: min(260px, 100%);
+  margin-bottom: -4px;
+}
+
+.users-modes button {
+  min-height: 26px;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
 @media (min-width: 760px) {
   .users-tools {
     grid-template-columns: auto minmax(200px, 280px);

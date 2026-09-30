@@ -140,7 +140,6 @@ export default function Users({ onBack, onWatch, listRequest = 0, onTrail }: Pro
             </div>
           </div>
         </div>
-        <StatsModePicker mode={mode} onChange={chooseMode} />
         <div className="users-tools">
           <div className="account-tabs" role="tablist">
             <FilterChip label="Tous" count={counts.total} on={filter === "all"} onClick={() => setFilter("all")} />
@@ -171,6 +170,8 @@ export default function Users({ onBack, onWatch, listRequest = 0, onTrail }: Pro
 
       {error && <p className="account-error">{error}</p>}
       {!users && !error && <p className="hint">Chargement des joueurs…</p>}
+
+      {users && users.length > 0 && <StatsModePicker mode={mode} onChange={chooseMode} className="users-modes" />}
 
       {users && visible.length === 0 && (
         <p className="hint">
