@@ -21,6 +21,7 @@ import type { Cell } from "@shared/types";
 import Avatar from "../components/Avatar";
 import { BadgeButton } from "../components/BadgeDialog";
 import AvatarCropper from "../components/AvatarCropper";
+import ProfileStats from "../components/ProfileStats";
 import type { Crumb } from "../components/Breadcrumb";
 import WordTables, { PossibleWords } from "../components/WordTables";
 import WordLink from "../components/WordLink";
@@ -320,58 +321,7 @@ export default function Profile({ onBack, onDisplayName, onSignOut, onTrail, res
             {nickBusy ? "Enregistrement…" : nickSaved ? "Enregistré" : "Enregistrer"}
           </button>
         </form>
-        {profile && (
-          <div className="profile-stats">
-            <Stat
-              label="Parties"
-              value={profile.stats.gamesPlayed}
-              hint={partyHint(profile.stats)}
-            />
-            <Stat
-              label="Mots"
-              value={profile.stats.wordsFound}
-              hint="Mots validés sur toutes tes manches, y compris ceux trouvés en même temps qu’un autre joueur."
-            />
-            <Stat
-              label="Points"
-              value={profile.stats.totalPoints}
-              hint="Cumul de tes scores de manches. Les mots partagés rapportent tout de même leurs points."
-            />
-            <Stat
-              label="Victoires"
-              value={profile.stats.wins}
-              hint="Nombre de fois où tu as fini premier d’une partie à plusieurs. Le solo ne compte pas."
-            />
-            <Stat
-              label="Manches"
-              value={profile.stats.roundsPlayed}
-              hint="Grilles jouées jusqu’au bout. Une partie peut contenir plusieurs manches."
-            />
-            <Stat
-              label="Mot le plus long"
-              value={profile.stats.longestWord > 0 ? profile.stats.longestWord : "—"}
-              hint={
-                profile.stats.longestWord > 0
-                  ? `${profile.stats.longestWord} lettre${profile.stats.longestWord > 1 ? "s" : ""} sur un seul mot validé.`
-                  : "La longueur de ton plus long mot validé apparaîtra ici."
-              }
-            />
-            <Stat
-              label="Meilleure manche"
-              value={profile.stats.bestRoundScore}
-              hint={
-                profile.stats.bestRoundWords > 0
-                  ? `${profile.stats.bestRoundScore} pts · ${profile.stats.bestRoundWords} mot${profile.stats.bestRoundWords > 1 ? "s" : ""} sur une même grille.`
-                  : "Ton meilleur score sur une seule grille."
-              }
-            />
-            <Stat
-              label="Mots uniques"
-              value={profile.stats.uniqueWords}
-              hint="Mots que tu étais seul à trouver. Les mots tapés en même temps que quelqu’un d’autre ne sont pas comptés ici."
-            />
-          </div>
-        )}
+        {profile && <ProfileStats stats={profile.stats} modes={profile.modes} />}
       </section>
 
       {error && <p className="account-error">{error}</p>}
@@ -417,33 +367,7 @@ export default function Profile({ onBack, onDisplayName, onSignOut, onTrail, res
   );
 }
 
-function partyHint(stats: ProfilePayload["stats"]): string {
-  const parts: string[] = [];
-  if (stats.soloGames) parts.push(`${stats.soloGames} solo`);
-  if (stats.multiGames) parts.push(`${stats.multiGames} à plusieurs`);
-  if (parts.length === 0) {
-    return "Parties terminées pendant que tu étais connecté.";
-  }
-  return `Terminées en étant connecté · ${parts.join(" · ")}.`;
-}
 
-function Stat({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: number | string;
-  hint: string;
-}) {
-  return (
-    <div className="profile-stat">
-      <b>{value}</b>
-      <span>{label}</span>
-      <p>{hint}</p>
-    </div>
-  );
-}
 
 export function WordStatsBoard({
   stats,

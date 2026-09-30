@@ -1059,6 +1059,21 @@ button {
   white-space: nowrap;
 }
 
+.profile-stats-block {
+  display: grid;
+  gap: 12px;
+}
+
+.profile-stats-modes {
+  justify-self: start;
+  width: min(360px, 100%);
+}
+
+.profile-stats-empty {
+  margin: 4px 0;
+  text-align: left;
+}
+
 .profile-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

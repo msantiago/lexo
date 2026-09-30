@@ -26,6 +26,24 @@ export type UserStats = {
   hostedGames: number;
 };
 
+export type ModeStats = {
+  games: number;
+  rounds: number;
+  words: number;
+  uniqueWords: number;
+  points: number;
+  averageRoundScore: number;
+  bestRoundScore: number;
+  bestRoundWords: number;
+  longestWord: number;
+  wins: number;
+};
+
+export type StatsByMode = {
+  solo: ModeStats;
+  multi: ModeStats;
+};
+
 export type HistoryPlayer = {
   name: string;
   color: string;
@@ -98,6 +116,7 @@ export type WordStatsPayload = {
 
 export type ProfilePayload = {
   stats: UserStats;
+  modes: StatsByMode;
   wordStats: WordStatsPayload;
   badges: BadgeView[];
   games: GameHistoryItem[];

@@ -23,7 +23,9 @@ import type {
   HistoryPlayer,
   LetterBucket,
   LengthBucket,
+  ModeStats,
   ProfilePayload,
+  StatsByMode,
   UserStats,
   WordFreq,
   WordStatsPayload,
@@ -161,6 +163,7 @@ export function migrateStore() {
       updated_at INTEGER NOT NULL
     );
   `);
+  db.prepare(`UPDATE user_stats SET wins = (${WINS_SQL})`).run();
 }
 
 export function loadUserSettings(userId: string): Partial<GameSettings> | null {
@@ -336,6 +339,29 @@ function evaluateBadges(userId: string, stats: UserStats, extra: ExtraStats, rou
   return next;
 }
 
+const WINS_SQL = `
+  SELECT COUNT(*)
+  FROM round_players rp
+  JOIN rounds r ON r.id = rp.round_id
+  JOIN games g ON g.id = r.game_id
+  WHERE rp.user_id = user_stats.user_id
+    AND g.solo = 0
+    AND r.round = (SELECT MAX(r2.round) FROM rounds r2 WHERE r2.game_id = g.id)
+    AND (SELECT COUNT(*) FROM round_players o WHERE o.round_id = r.id) > 1
+    AND rp.total_score = (SELECT MAX(o.total_score) FROM round_players o WHERE o.round_id = r.id)
+`;
+
+function syncGameWins(gameId: string) {
+  db.prepare(
+    `UPDATE user_stats SET wins = (${WINS_SQL})
+     WHERE user_id IN (
+       SELECT DISTINCT rp.user_id FROM round_players rp
+       JOIN rounds r ON r.id = rp.round_id
+       WHERE r.game_id = ? AND rp.user_id IS NOT NULL
+     )`,
+  ).run(gameId);
+}
+
 function alreadyInGame(gameId: string, userId: string): boolean {
   const row = db
     .prepare(
@@ -354,14 +380,6 @@ export function recordFinishedRound(snap: RoundSnapshot): {
   earned: Map<string, BadgeDef[]>;
 } {
   const now = snap.endedAt || Date.now();
-  const multi = snap.players.length > 1;
-  const topScore = Math.max(...snap.players.map((p) => p.totalScore), 0);
-  const winners = new Set(
-    snap.players.filter((p) => p.totalScore === topScore && (multi || p.totalScore > 0)).map(
-      (p) => p.id,
-    ),
-  );
-  if (!multi) winners.clear();
 
   const previewPlayers = [...snap.players]
     .sort((a, b) => b.totalScore - a.totalScore || a.name.localeCompare(b.name, "fr"))
@@ -423,9 +441,13 @@ export function recordFinishedRound(snap: RoundSnapshot): {
   );
 
   const earned = new Map<string, BadgeDef[]>();
+  const firstInGame = new Set(
+    snap.players
+      .filter((player) => player.userId && !alreadyInGame(gameId, player.userId))
+      .map((player) => player.id),
+  );
 
   for (const player of snap.players) {
-    const firstInGame = Boolean(player.userId && gameId && !alreadyInGame(gameId, player.userId));
     insertPlayer.run(
       roundId,
       player.id,
@@ -437,16 +459,19 @@ export function recordFinishedRound(snap: RoundSnapshot): {
       JSON.stringify(player.words),
       player.isHost ? 1 : 0,
     );
-    if (!player.userId) continue;
+    if (player.userId) ensureStats(player.userId);
+  }
+  syncGameWins(gameId);
 
-    ensureStats(player.userId);
+  for (const player of snap.players) {
+    if (!player.userId) continue;
+    const first = firstInGame.has(player.id);
     const words = player.words;
     const wordCount = words.length;
     const uniqueCount = words.filter((w) => !w.shared).length;
     const longest = words.reduce((max, w) => Math.max(max, w.letters), 0);
     const hasShared = words.some((w) => w.shared);
     const hasQu = words.some((w) => w.key.includes("QU") || w.display.toUpperCase().includes("QU"));
-    const win = winners.has(player.id);
 
     db.prepare(
       `UPDATE user_stats SET
@@ -458,7 +483,6 @@ export function recordFinishedRound(snap: RoundSnapshot): {
         longest_word = MAX(longest_word, ?),
         best_round_score = MAX(best_round_score, ?),
         best_round_words = MAX(best_round_words, ?),
-        wins = wins + ?,
         solo_games = solo_games + ?,
         multi_games = multi_games + ?,
         hosted_games = hosted_games + ?,
@@ -466,17 +490,16 @@ export function recordFinishedRound(snap: RoundSnapshot): {
         shared_words = shared_words + ?
        WHERE user_id = ?`,
     ).run(
-      firstInGame ? 1 : 0,
+      first ? 1 : 0,
       wordCount,
       uniqueCount,
       player.roundScore,
       longest,
       player.roundScore,
       wordCount,
-      firstInGame && win ? 1 : 0,
-      firstInGame && snap.solo ? 1 : 0,
-      firstInGame && !snap.solo ? 1 : 0,
-      firstInGame && player.isHost ? 1 : 0,
+      first && snap.solo ? 1 : 0,
+      first && !snap.solo ? 1 : 0,
+      first && player.isHost ? 1 : 0,
       hasQu ? 1 : 0,
       hasShared ? 1 : 0,
       player.userId,
@@ -669,11 +692,80 @@ export function readProfile(userId: string): ProfilePayload {
     .filter((badge): badge is BadgeDef => Boolean(badge));
   return {
     stats,
+    modes: getStatsByMode(userId),
     wordStats: getWordStats(userId),
     badges,
     games: listGames(userId),
     recentUnlocks,
   };
+}
+
+function emptyModeStats(): ModeStats {
+  return {
+    games: 0,
+    rounds: 0,
+    words: 0,
+    uniqueWords: 0,
+    points: 0,
+    averageRoundScore: 0,
+    bestRoundScore: 0,
+    bestRoundWords: 0,
+    longestWord: 0,
+    wins: 0,
+  };
+}
+
+export function getStatsByMode(userId: string): StatsByMode {
+  const rows = db
+    .prepare(
+      `SELECT g.id AS game_id, g.solo, r.round, rp.round_score, rp.total_score, rp.words_json,
+         (SELECT MAX(r2.round) FROM rounds r2 WHERE r2.game_id = g.id) AS last_round,
+         (SELECT MAX(o.total_score) FROM round_players o WHERE o.round_id = r.id) AS top_score,
+         (SELECT COUNT(*) FROM round_players o WHERE o.round_id = r.id) AS seats
+       FROM round_players rp
+       JOIN rounds r ON r.id = rp.round_id
+       JOIN games g ON g.id = r.game_id
+       WHERE rp.user_id = ?`,
+    )
+    .all(userId) as {
+    game_id: string;
+    solo: number;
+    round: number;
+    round_score: number;
+    total_score: number;
+    words_json: string;
+    last_round: number;
+    top_score: number;
+    seats: number;
+  }[];
+
+  const modes: StatsByMode = { solo: emptyModeStats(), multi: emptyModeStats() };
+  const games = { solo: new Set<string>(), multi: new Set<string>() };
+
+  for (const row of rows) {
+    const mode = row.solo ? "solo" : "multi";
+    const stats = modes[mode];
+    const words = parseJson<FoundWord[]>(row.words_json, []);
+    games[mode].add(row.game_id);
+    stats.rounds += 1;
+    stats.words += words.length;
+    stats.uniqueWords += words.filter((word) => !word.shared).length;
+    stats.points += row.round_score;
+    stats.bestRoundScore = Math.max(stats.bestRoundScore, row.round_score);
+    stats.bestRoundWords = Math.max(stats.bestRoundWords, words.length);
+    for (const word of words) stats.longestWord = Math.max(stats.longestWord, word.letters);
+    const finalRound = row.round === row.last_round;
+    if (mode === "multi" && finalRound && row.seats > 1 && row.total_score === row.top_score) {
+      stats.wins += 1;
+    }
+  }
+
+  for (const mode of ["solo", "multi"] as const) {
+    const stats = modes[mode];
+    stats.games = games[mode].size;
+    stats.averageRoundScore = stats.rounds === 0 ? 0 : Math.round((stats.points / stats.rounds) * 10) / 10;
+  }
+  return modes;
 }
 
 function wordInitial(word: FoundWord): string {
