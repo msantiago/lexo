@@ -35,16 +35,39 @@ function verbsPhrase(settings: GameSettings): string {
   return "participes uniquement";
 }
 
+export function objectivePhrase(settings: GameSettings): string {
+  if (settings.objective === "score") {
+    return `premier à ${settings.targetScore} points`;
+  }
+  return `${settings.maxRounds} manches`;
+}
+
 /** Une phrase lisible pour les joueurs qui ne choisissent pas les règles. */
-export function summarizeRules(settings: GameSettings): string {
-  return (
+export function summarizeRules(settings: GameSettings, multiplayer = false): string {
+  const base =
     `Manche de ${durationPhrase(settings.durationSec)}, ` +
     `grille ${difficultyPhrase(settings.difficulty)}, ` +
     `mots d’au moins ${settings.minLetters} lettres, ` +
     `${settings.letterOrientation === "shuffle" ? "lettres tournées au hasard" : "lettres à l’endroit"}, ` +
     `${formesPhrase(settings)}, ` +
-    `${verbsPhrase(settings)}.`
-  );
+    `${verbsPhrase(settings)}`;
+  if (!multiplayer) return `${base}.`;
+  const join = settings.allowJoinMidGame
+    ? "nouveaux joueurs acceptés en cours de partie"
+    : "pas de nouveaux joueurs une fois la partie lancée";
+  return `${base}, objectif : ${objectivePhrase(settings)}, ${join}.`;
+}
+
+/** Fin de partie multi selon l'objectif (ignoré en solo). */
+export function matchIsOver(
+  round: number,
+  totals: number[],
+  settings: GameSettings,
+  solo: boolean,
+): boolean {
+  if (solo) return false;
+  if (settings.objective === "rounds") return round >= settings.maxRounds;
+  return totals.some((score) => score >= settings.targetScore);
 }
 
 export function phaseLabel(phase: Phase): string {

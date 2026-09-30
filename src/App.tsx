@@ -280,6 +280,7 @@ export default function App() {
           isHost={isHost}
           admin={admin}
           onNext={() => socket.emit("game:start")}
+          onRematch={() => socket.emit("game:rematch")}
           onLeave={leave}
           onCloseRoom={() => closeRoom(room.code)}
         />

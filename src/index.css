@@ -846,6 +846,16 @@ button {
   min-width: 0;
 }
 
+.profile-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 14px;
+  margin-left: auto;
+  flex: none;
+}
+
 .profile-identity {
   display: flex;
   align-items: center;
@@ -2597,6 +2607,13 @@ button.badge-card:focus-visible {
   accent-color: var(--gold);
 }
 
+.rule-subsegment {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+}
+
+
 .segment {
   display: flex;
   gap: 2px;
@@ -2666,6 +2683,17 @@ button.badge-card:focus-visible {
   font-size: 14px;
   font-weight: 800;
   padding: 2px 0;
+  text-align: left;
+}
+
+.rule-switch-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rule-switch-label {
+  line-height: 1.2;
 }
 
 .rule-switch:disabled {
@@ -2865,6 +2893,12 @@ button.badge-card:focus-visible {
   margin: 6px 0 0;
   font-size: 12px;
   color: var(--ivory-dim);
+}
+
+.rule-switch-hint {
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 .rules-score {

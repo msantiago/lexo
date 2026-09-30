@@ -22,6 +22,7 @@ import {
 } from "../shared/types.ts";
 import { COUNTDOWN_MS, roundEndsAt } from "../shared/countdown.ts";
 import { isValidPath, pathToWord, wordPoints } from "../shared/dice.ts";
+import { matchIsOver } from "../shared/rules.ts";
 import { joinNames, leadersByRoundScore } from "../shared/round.ts";
 import { addCustomWord, lookupWord } from "./dictionary.ts";
 import { findAllWords, rollPlayableGrid } from "./solver.ts";
@@ -74,6 +75,8 @@ type Room = {
   solo: boolean;
   phase: Phase;
   round: number;
+  /** Objectif multi atteint ; l'hôte doit relancer une nouvelle partie. */
+  matchOver: boolean;
   settings: GameSettings;
   players: Player[];
   grid: Cell[] | null;
@@ -148,6 +151,12 @@ function clampSettings(input: Partial<GameSettings> | undefined): GameSettings {
     base.difficulty === "hard"
       ? base.difficulty
       : "medium";
+  const objective: GameSettings["objective"] = base.objective === "score" ? "score" : "rounds";
+  const maxRounds = Math.min(20, Math.max(3, Math.round(Number(base.maxRounds) || DEFAULT_SETTINGS.maxRounds)));
+  const targetScore = Math.min(
+    500,
+    Math.max(50, Math.round((Number(base.targetScore) || DEFAULT_SETTINGS.targetScore) / 10) * 10),
+  );
   return {
     durationSec,
     minLetters,
@@ -158,6 +167,10 @@ function clampSettings(input: Partial<GameSettings> | undefined): GameSettings {
     allowPresentParticiple: allowPresent,
     difficulty,
     letterOrientation: base.letterOrientation === "shuffle" ? "shuffle" : "upright",
+    objective,
+    maxRounds,
+    targetScore,
+    allowJoinMidGame: base.allowJoinMidGame !== false,
   };
 }
 
@@ -412,6 +425,7 @@ export function viewFor(room: Room, viewerId: string, observing = false): RoomVi
     startedAt: room.startedAt,
     endsAt: room.endsAt,
     solo: room.solo,
+    matchOver: room.matchOver,
     observing,
     you: {
       id: viewerId,
@@ -455,6 +469,7 @@ function toLobbyRoom(room: Room, images: Map<string, string | null>): LobbyRoom 
     playerCount: room.players.length,
     difficulty: room.settings.difficulty,
     solo: room.solo,
+    allowJoinMidGame: room.settings.allowJoinMidGame,
     players: room.players.map((p) => ({
       id: p.id,
       name: p.name,
@@ -549,6 +564,12 @@ function finishRound(room: Room) {
   for (const player of room.players) {
     player.totalScore += player.roundScore;
   }
+  room.matchOver = matchIsOver(
+    room.round,
+    room.players.map((p) => p.totalScore),
+    room.settings,
+    room.solo,
+  );
   const all =
     room.possibleWords.length > 0
       ? room.possibleWords
@@ -796,6 +817,7 @@ export function createRoom(
     solo,
     phase: "lobby",
     round: 0,
+    matchOver: false,
     settings: clampSettings(loadUserSettings(userId) ?? undefined),
     players: [player],
     grid: null,
@@ -855,6 +877,12 @@ export function joinRoom(
     return { error: "Ce prénom est déjà pris dans ce salon" as const };
   }
   if (room.solo) return { error: "Cette partie est en solo" as const };
+  if (
+    (room.phase !== "lobby" || room.round > 0 || room.matchOver) &&
+    !room.settings.allowJoinMidGame
+  ) {
+    return { error: "Ce salon n’accepte plus de nouveaux joueurs" as const };
+  }
   const player = makePlayer(socketId, playerName, nextColor(room), userId, tabId);
   room.players.push(player);
   socketRoom.set(socketId, room.code);
@@ -1033,6 +1061,14 @@ export function updateSettings(socketId: string, settings: Partial<GameSettings>
     return { error: "Impossible de changer les règles en cours de manche" as const };
   }
   room.settings = clampSettings(settings);
+  if (room.phase === "results") {
+    room.matchOver = matchIsOver(
+      room.round,
+      room.players.map((p) => p.totalScore),
+      room.settings,
+      room.solo,
+    );
+  }
   emitState(room);
   return { ok: true as const };
 }
@@ -1074,6 +1110,9 @@ export async function startGame(socketId: string) {
   if (room.phase === "playing" || rolling.has(room)) {
     return { error: "La manche est déjà lancée" as const };
   }
+  if (room.matchOver) {
+    return { error: "La partie est terminée. Lance une nouvelle partie." as const };
+  }
   if (player.userId) saveUserSettings(player.userId, room.settings);
   rolling.add(room);
   try {
@@ -1081,6 +1120,50 @@ export async function startGame(socketId: string) {
   } finally {
     rolling.delete(room);
   }
+  return { ok: true as const };
+}
+
+function resetMatch(room: Room) {
+  clearTimer(room);
+  room.phase = "lobby";
+  room.round = 0;
+  room.matchOver = false;
+  room.persistedId = null;
+  room.grid = null;
+  room.startedAt = null;
+  room.endsAt = null;
+  room.foundBy = new Map();
+  room.rejected = new Map();
+  room.missed = [];
+  room.possibleWords = [];
+  room.possibleCount = 0;
+  room.likes = new Map();
+  room.traces = new Map();
+  for (const player of room.players) {
+    player.words = [];
+    player.roundScore = 0;
+    player.totalScore = 0;
+    player.earnedBadges = [];
+  }
+}
+
+/** Remet les scores à zéro et revient au salon pour une nouvelle partie. */
+export function rematch(socketId: string) {
+  const room = getRoomBySocket(socketId);
+  if (!room) return { error: "Pas dans un salon" as const };
+  const player = room.players.find((p) => p.socketId === socketId);
+  if (!player || player.id !== room.hostId) {
+    return { error: "Seul l'hôte peut relancer la partie" as const };
+  }
+  if (room.phase !== "results") {
+    return { error: "La partie n’est pas encore terminée" as const };
+  }
+  if (!room.matchOver) {
+    return { error: "Il reste des manches à jouer" as const };
+  }
+  resetMatch(room);
+  emitState(room);
+  notifyLobby();
   return { ok: true as const };
 }
 

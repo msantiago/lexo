@@ -27,6 +27,7 @@ import {
   observeRoom,
   rejoinByUserId,
   rejoinRoom,
+  rematch,
   setBroadcast,
   setLobbyBroadcast,
   setPlayerTrace,
@@ -440,6 +441,11 @@ io.on("connection", async (socket) => {
 
   socket.on("game:start", async () => {
     const result = await startGame(socket.id);
+    if (result && "error" in result) socket.emit("notice", { message: result.error });
+  });
+
+  socket.on("game:rematch", () => {
+    const result = rematch(socket.id);
     if (result && "error" in result) socket.emit("notice", { message: result.error });
   });
 

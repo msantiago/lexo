@@ -324,7 +324,14 @@ function LobbyRoomGroup({
                 nameTaken={nameTaken}
                 canRejoin={canRejoin}
                 canContinue={canContinue}
-                canJoin={canRejoin || (ready && !room.solo && room.playerCount < MAX_PLAYERS && !nameTaken)}
+                canJoin={
+                  canRejoin ||
+                  (ready &&
+                    !room.solo &&
+                    room.playerCount < MAX_PLAYERS &&
+                    !nameTaken &&
+                    (room.phase === "lobby" || room.allowJoinMidGame))
+                }
                 admin={admin}
                 onJoin={() => {
                   unlockAudio();
@@ -464,10 +471,12 @@ function RoomActions({
   onClose?: () => void;
 }) {
   const full = room.playerCount >= MAX_PLAYERS;
+  const joinClosed = room.phase !== "lobby" && !room.allowJoinMidGame;
   let joinLabel = "Rejoindre";
   if (canRejoin) joinLabel = "Revenir";
   else if (full) joinLabel = "Complet";
   else if (nameTaken) joinLabel = "Prénom pris";
+  else if (joinClosed) joinLabel = "Partie fermée";
 
   return (
     <div className="live-actions">
