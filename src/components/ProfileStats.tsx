@@ -1,4 +1,4 @@
-import type { ModeStats, ProfilePayload, StatsByMode, UserStats, WordStatsPayload } from "@shared/account";
+import type { GameHistoryItem, ModeStats, ProfilePayload, StatsByMode, UserStats, WordStatsPayload } from "@shared/account";
 
 export type StatsMode = "all" | "solo" | "multi";
 type Mode = StatsMode;
@@ -133,6 +133,37 @@ function multiTiles(stats: ModeStats, voice: Voice): Tile[] {
   ];
 }
 
+export function StatsModePicker({
+  mode,
+  onChange,
+  className,
+}: {
+  mode: StatsMode;
+  onChange: (mode: StatsMode) => void;
+  className?: string;
+}) {
+  return (
+    <div className={`segment profile-stats-modes ${className ?? ""}`.trim()} role="radiogroup" aria-label="Type de parties">
+      {MODES.map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          role="radio"
+          aria-checked={mode === option.id}
+          className={mode === option.id ? "on" : undefined}
+          onClick={() => onChange(option.id)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function gamesFor(games: GameHistoryItem[], mode: StatsMode): GameHistoryItem[] {
+  return mode === "all" ? games : games.filter((game) => game.solo === (mode === "solo"));
+}
+
 export function wordStatsFor(profile: ProfilePayload, mode: StatsMode): WordStatsPayload {
   return mode === "all" ? profile.wordStats : profile.wordStatsByMode[mode];
 }
@@ -160,20 +191,7 @@ export default function ProfileStats({
 
   return (
     <div className="profile-stats-block">
-      <div className="segment profile-stats-modes" role="radiogroup" aria-label="Type de parties">
-        {MODES.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            role="radio"
-            aria-checked={mode === option.id}
-            className={mode === option.id ? "on" : undefined}
-            onClick={() => onModeChange(option.id)}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+      <StatsModePicker mode={mode} onChange={onModeChange} />
       {empty ? (
         <p className="hint profile-stats-empty">
           {mode === "solo" ? "Aucune partie solo" : "Aucune partie à plusieurs"} pour l’instant.

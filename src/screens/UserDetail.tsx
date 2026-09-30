@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { GameHistoryDetail, GameHistoryItem, PublicProfile } from "@shared/account";
 import Avatar from "../components/Avatar";
 import type { Crumb } from "../components/Breadcrumb";
-import ProfileStats, { wordStatsFor, type StatsMode } from "../components/ProfileStats";
+import ProfileStats, { gamesFor, wordStatsFor, type StatsMode } from "../components/ProfileStats";
 import { WatchButton } from "../components/RoundActions";
 import { displayNameFromUser } from "../lib/auth-client";
 import { activityLabel, formatJoined } from "../lib/presence";
@@ -163,14 +163,14 @@ export default function UserDetail({ userId, onBack, onWatch, onTrail }: Props) 
               aria-selected={tab === "games"}
               onClick={() => setTab("games")}
             >
-              Parties ({profile.games.length})
+              Parties ({gamesFor(profile.games, statsMode).length})
             </button>
           </div>
           {tab === "badges" && <BadgeBoard badges={profile.badges} />}
           {tab === "words" && (
             <WordStatsBoard stats={wordStatsFor(profile, statsMode)} mode={statsMode} voice="public" />
           )}
-          {tab === "games" && <GameList games={profile.games} voice="public" onOpen={openGame} />}
+          {tab === "games" && <GameList games={gamesFor(profile.games, statsMode)} mode={statsMode} voice="public" onOpen={openGame} />}
         </>
       )}
     </div>

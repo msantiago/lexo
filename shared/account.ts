@@ -140,6 +140,13 @@ export type DirectoryStats = {
   wins: number;
 };
 
+export type DirectoryModeStats = {
+  games: number;
+  words: number;
+  points: number;
+  wins: number;
+};
+
 export type DirectoryUser = {
   id: string;
   name: string;
@@ -148,6 +155,7 @@ export type DirectoryUser = {
   online: boolean;
   play: DirectoryPlay | null;
   stats: DirectoryStats;
+  modes: { solo: DirectoryModeStats; multi: DirectoryModeStats };
 };
 
 export type PublicProfile = ProfilePayload & {

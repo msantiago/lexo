@@ -21,7 +21,7 @@ import type { Cell } from "@shared/types";
 import Avatar from "../components/Avatar";
 import { BadgeButton } from "../components/BadgeDialog";
 import AvatarCropper from "../components/AvatarCropper";
-import ProfileStats, { wordStatsFor, type StatsMode } from "../components/ProfileStats";
+import ProfileStats, { gamesFor, wordStatsFor, type StatsMode } from "../components/ProfileStats";
 import type { Crumb } from "../components/Breadcrumb";
 import WordTables, { PossibleWords } from "../components/WordTables";
 import WordLink from "../components/WordLink";
@@ -360,7 +360,7 @@ export default function Profile({ onBack, onDisplayName, onSignOut, onTrail, res
           aria-selected={tab === "games"}
           onClick={() => setTab("games")}
         >
-          Parties {profile ? `(${profile.games.length})` : ""}
+          Parties {profile ? `(${gamesFor(profile.games, statsMode).length})` : ""}
         </button>
       </div>
 
@@ -371,7 +371,7 @@ export default function Profile({ onBack, onDisplayName, onSignOut, onTrail, res
         <WordStatsBoard stats={wordStatsFor(profile, statsMode)} mode={statsMode} />
       )}
       {profile && tab === "games" && (
-        <GameList games={profile.games} onOpen={openGame} />
+        <GameList games={gamesFor(profile.games, statsMode)} mode={statsMode} onOpen={openGame} />
       )}
     </div>
   );
@@ -630,18 +630,24 @@ export function BadgeBoard({ badges }: { badges: BadgeView[] }) {
 export function GameList({
   games,
   onOpen,
+  mode = "all",
   voice = "self",
 }: {
   games: GameHistoryItem[];
   onOpen: (game: GameHistoryItem) => void;
+  mode?: StatsMode;
   voice?: "self" | "public";
 }) {
   if (games.length === 0) {
     return (
       <p className="hint">
-        {voice === "public"
-          ? "Aucune partie enregistrée."
-          : "Tes parties enregistrées apparaîtront ici. Joue connecté pour les retrouver plus tard."}
+        {mode === "solo"
+          ? "Aucune partie solo enregistrée."
+          : mode === "multi"
+            ? "Aucune partie à plusieurs enregistrée."
+            : voice === "public"
+              ? "Aucune partie enregistrée."
+              : "Tes parties enregistrées apparaîtront ici. Joue connecté pour les retrouver plus tard."}
       </p>
     );
   }

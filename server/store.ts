@@ -18,6 +18,7 @@ import {
   type BadgeView,
 } from "../shared/badges.ts";
 import type {
+  DirectoryModeStats,
   GameHistoryDetail,
   GameHistoryItem,
   HistoryPlayer,
@@ -767,6 +768,45 @@ export function getStatsByMode(userId: string): StatsByMode {
     stats.averageRoundScore = stats.rounds === 0 ? 0 : Math.round((stats.points / stats.rounds) * 10) / 10;
   }
   return modes;
+}
+
+export function listModeStats(): Map<string, { solo: DirectoryModeStats; multi: DirectoryModeStats }> {
+  const rows = db
+    .prepare(
+      `SELECT rp.user_id, g.solo,
+         COUNT(DISTINCT g.id) AS games,
+         COALESCE(SUM(json_array_length(rp.words_json)), 0) AS words,
+         COALESCE(SUM(rp.round_score), 0) AS points,
+         SUM(
+           g.solo = 0
+           AND r.round = (SELECT MAX(r2.round) FROM rounds r2 WHERE r2.game_id = g.id)
+           AND (SELECT COUNT(*) FROM round_players o WHERE o.round_id = r.id) > 1
+           AND rp.total_score = (SELECT MAX(o.total_score) FROM round_players o WHERE o.round_id = r.id)
+         ) AS wins
+       FROM round_players rp
+       JOIN rounds r ON r.id = rp.round_id
+       JOIN games g ON g.id = r.game_id
+       WHERE rp.user_id IS NOT NULL
+       GROUP BY rp.user_id, g.solo`,
+    )
+    .all() as { user_id: string; solo: number; games: number; words: number; points: number; wins: number }[];
+
+  const empty = (): DirectoryModeStats => ({ games: 0, words: 0, points: 0, wins: 0 });
+  const byUser = new Map<string, { solo: DirectoryModeStats; multi: DirectoryModeStats }>();
+  for (const row of rows) {
+    let entry = byUser.get(row.user_id);
+    if (!entry) {
+      entry = { solo: empty(), multi: empty() };
+      byUser.set(row.user_id, entry);
+    }
+    entry[row.solo ? "solo" : "multi"] = {
+      games: row.games,
+      words: row.words,
+      points: row.points,
+      wins: row.wins,
+    };
+  }
+  return byUser;
 }
 
 function wordInitial(word: FoundWord): string {
