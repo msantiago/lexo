@@ -21,7 +21,7 @@ import type { Cell } from "@shared/types";
 import Avatar from "../components/Avatar";
 import { BadgeButton } from "../components/BadgeDialog";
 import AvatarCropper from "../components/AvatarCropper";
-import ProfileStats from "../components/ProfileStats";
+import ProfileStats, { wordStatsFor, type StatsMode } from "../components/ProfileStats";
 import type { Crumb } from "../components/Breadcrumb";
 import WordTables, { PossibleWords } from "../components/WordTables";
 import WordLink from "../components/WordLink";
@@ -41,6 +41,7 @@ type Props = {
 export default function Profile({ onBack, onDisplayName, onSignOut, onTrail, resetRequest = 0 }: Props) {
   const { data: session } = authClient.useSession();
   const [tab, setTab] = useState<Tab>("badges");
+  const [statsMode, setStatsMode] = useState<StatsMode>("all");
   const [profile, setProfile] = useState<ProfilePayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [game, setGame] = useState<GameHistoryDetail | null>(null);
@@ -321,7 +322,14 @@ export default function Profile({ onBack, onDisplayName, onSignOut, onTrail, res
             {nickBusy ? "Enregistrement…" : nickSaved ? "Enregistré" : "Enregistrer"}
           </button>
         </form>
-        {profile && <ProfileStats stats={profile.stats} modes={profile.modes} />}
+        {profile && (
+          <ProfileStats
+            stats={profile.stats}
+            modes={profile.modes}
+            mode={statsMode}
+            onModeChange={setStatsMode}
+          />
+        )}
       </section>
 
       {error && <p className="account-error">{error}</p>}
@@ -343,7 +351,7 @@ export default function Profile({ onBack, onDisplayName, onSignOut, onTrail, res
           aria-selected={tab === "words"}
           onClick={() => setTab("words")}
         >
-          Mots {profile ? `(${profile.wordStats.distinct})` : ""}
+          Mots {profile ? `(${wordStatsFor(profile, statsMode).distinct})` : ""}
         </button>
         <button
           type="button"
@@ -359,7 +367,9 @@ export default function Profile({ onBack, onDisplayName, onSignOut, onTrail, res
       {!profile && !error && <p className="hint">Chargement…</p>}
 
       {profile && tab === "badges" && <BadgeBoard badges={profile.badges} />}
-      {profile && tab === "words" && <WordStatsBoard stats={profile.wordStats} />}
+      {profile && tab === "words" && (
+        <WordStatsBoard stats={wordStatsFor(profile, statsMode)} mode={statsMode} />
+      )}
       {profile && tab === "games" && (
         <GameList games={profile.games} onOpen={openGame} />
       )}
@@ -371,17 +381,23 @@ export default function Profile({ onBack, onDisplayName, onSignOut, onTrail, res
 
 export function WordStatsBoard({
   stats,
+  mode = "all",
   voice = "self",
 }: {
   stats: WordStatsPayload;
+  mode?: StatsMode;
   voice?: "self" | "public";
 }) {
   if (stats.total === 0) {
     return (
       <p className="hint">
-        {voice === "public"
-          ? "Pas encore de stats de mots."
-          : "Tes stats de mots apparaîtront ici. Joue connecté pour suivre tes fréquences, longueurs et lettres favorites."}
+        {mode === "solo"
+          ? "Aucun mot validé en solo pour l’instant."
+          : mode === "multi"
+            ? "Aucun mot validé à plusieurs pour l’instant."
+            : voice === "public"
+              ? "Pas encore de stats de mots."
+              : "Tes stats de mots apparaîtront ici. Joue connecté pour suivre tes fréquences, longueurs et lettres favorites."}
       </p>
     );
   }
@@ -392,6 +408,9 @@ export function WordStatsBoard({
   return (
     <div className="word-stats">
       <section className="panel word-stats-summary">
+        {mode !== "all" && (
+          <p className="daily-kicker">{mode === "solo" ? "Parties solo" : "Parties à plusieurs"}</p>
+        )}
         <p>
           <b>{stats.total}</b> mot{stats.total > 1 ? "s" : ""} validé{stats.total > 1 ? "s" : ""} ·{" "}
           <b>{stats.distinct}</b> distinct{stats.distinct > 1 ? "s" : ""} · longueur moyenne{" "}
@@ -399,8 +418,14 @@ export function WordStatsBoard({
           {stats.averageLength > 1 ? "s" : ""}
         </p>
         <p className="muted">
-          {stats.uniqueCount} trouvé{stats.uniqueCount > 1 ? "s" : ""} sans personne d’autre ·{" "}
-          {stats.sharedCount} partagé{stats.sharedCount > 1 ? "s" : ""} · {stats.quCount} avec Qu
+          {mode === "solo" ? (
+            <>{stats.quCount} avec Qu</>
+          ) : (
+            <>
+              {stats.uniqueCount} trouvé{stats.uniqueCount > 1 ? "s" : ""} sans personne d’autre ·{" "}
+              {stats.sharedCount} partagé{stats.sharedCount > 1 ? "s" : ""} · {stats.quCount} avec Qu
+            </>
+          )}
         </p>
       </section>
 
@@ -469,8 +494,8 @@ export function WordStatsBoard({
           <h2>Plus longs</h2>
           <p className="muted word-stats-help">
             {voice === "public"
-              ? "Records de longueur, toutes parties confondues."
-              : "Tes records de longueur, toutes parties confondues."}
+              ? "Records de longueur."
+              : "Tes records de longueur."}
           </p>
           <WordRankList words={stats.longest} mode="length" />
         </section>

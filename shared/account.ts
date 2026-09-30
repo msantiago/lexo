@@ -118,6 +118,7 @@ export type ProfilePayload = {
   stats: UserStats;
   modes: StatsByMode;
   wordStats: WordStatsPayload;
+  wordStatsByMode: { solo: WordStatsPayload; multi: WordStatsPayload };
   badges: BadgeView[];
   games: GameHistoryItem[];
   recentUnlocks: BadgeDef[];

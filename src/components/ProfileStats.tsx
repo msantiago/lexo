@@ -1,7 +1,7 @@
-import { useState } from "react";
-import type { ModeStats, StatsByMode, UserStats } from "@shared/account";
+import type { ModeStats, ProfilePayload, StatsByMode, UserStats, WordStatsPayload } from "@shared/account";
 
-type Mode = "all" | "solo" | "multi";
+export type StatsMode = "all" | "solo" | "multi";
+type Mode = StatsMode;
 type Voice = "self" | "public";
 
 type Tile = { label: string; value: number | string; hint: string };
@@ -133,16 +133,23 @@ function multiTiles(stats: ModeStats, voice: Voice): Tile[] {
   ];
 }
 
+export function wordStatsFor(profile: ProfilePayload, mode: StatsMode): WordStatsPayload {
+  return mode === "all" ? profile.wordStats : profile.wordStatsByMode[mode];
+}
+
 export default function ProfileStats({
   stats,
   modes,
+  mode,
+  onModeChange,
   voice = "self",
 }: {
   stats: UserStats;
   modes: StatsByMode;
+  mode: StatsMode;
+  onModeChange: (mode: StatsMode) => void;
   voice?: Voice;
 }) {
-  const [mode, setMode] = useState<Mode>("all");
   const empty = mode !== "all" && modes[mode].games === 0;
   const tiles =
     mode === "all"
@@ -161,7 +168,7 @@ export default function ProfileStats({
             role="radio"
             aria-checked={mode === option.id}
             className={mode === option.id ? "on" : undefined}
-            onClick={() => setMode(option.id)}
+            onClick={() => onModeChange(option.id)}
           >
             {option.label}
           </button>

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { GameHistoryDetail, GameHistoryItem, PublicProfile } from "@shared/account";
 import Avatar from "../components/Avatar";
 import type { Crumb } from "../components/Breadcrumb";
-import ProfileStats from "../components/ProfileStats";
+import ProfileStats, { wordStatsFor, type StatsMode } from "../components/ProfileStats";
 import { WatchButton } from "../components/RoundActions";
 import { displayNameFromUser } from "../lib/auth-client";
 import { activityLabel, formatJoined } from "../lib/presence";
@@ -21,6 +21,7 @@ export default function UserDetail({ userId, onBack, onWatch, onTrail }: Props) 
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("badges");
+  const [statsMode, setStatsMode] = useState<StatsMode>("all");
   const [game, setGame] = useState<GameHistoryDetail | null>(null);
   const hasData = useRef(false);
 
@@ -121,7 +122,14 @@ export default function UserDetail({ userId, onBack, onWatch, onTrail }: Props) 
             </div>
           )}
         </div>
-        {profile && <ProfileStats stats={profile.stats} modes={profile.modes} voice="public" />}
+        {profile && (
+          <ProfileStats
+            stats={profile.stats}
+            modes={profile.modes}
+            mode={statsMode}
+            onModeChange={setStatsMode} voice="public"
+          />
+        )}
       </section>
 
       {error && <p className="account-error">{error}</p>}
@@ -146,7 +154,7 @@ export default function UserDetail({ userId, onBack, onWatch, onTrail }: Props) 
               aria-selected={tab === "words"}
               onClick={() => setTab("words")}
             >
-              Mots ({profile.wordStats.distinct})
+              Mots ({wordStatsFor(profile, statsMode).distinct})
             </button>
             <button
               type="button"
@@ -159,7 +167,9 @@ export default function UserDetail({ userId, onBack, onWatch, onTrail }: Props) 
             </button>
           </div>
           {tab === "badges" && <BadgeBoard badges={profile.badges} />}
-          {tab === "words" && <WordStatsBoard stats={profile.wordStats} voice="public" />}
+          {tab === "words" && (
+            <WordStatsBoard stats={wordStatsFor(profile, statsMode)} mode={statsMode} voice="public" />
+          )}
           {tab === "games" && <GameList games={profile.games} voice="public" onOpen={openGame} />}
         </>
       )}

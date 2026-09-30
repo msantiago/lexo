@@ -694,6 +694,7 @@ export function readProfile(userId: string): ProfilePayload {
     stats,
     modes: getStatsByMode(userId),
     wordStats: getWordStats(userId),
+    wordStatsByMode: { solo: getWordStats(userId, true), multi: getWordStats(userId, false) },
     badges,
     games: listGames(userId),
     recentUnlocks,
@@ -778,10 +779,20 @@ function toFreq(key: string, entry: Omit<WordFreq, "key">): WordFreq {
   return { key, ...entry };
 }
 
-export function getWordStats(userId: string): WordStatsPayload {
-  const rows = db
-    .prepare(`SELECT words_json FROM round_players WHERE user_id = ?`)
-    .all(userId) as { words_json: string }[];
+export function getWordStats(userId: string, solo?: boolean): WordStatsPayload {
+  const rows = (
+    solo === undefined
+      ? db.prepare(`SELECT words_json FROM round_players WHERE user_id = ?`).all(userId)
+      : db
+          .prepare(
+            `SELECT rp.words_json
+             FROM round_players rp
+             JOIN rounds r ON r.id = rp.round_id
+             JOIN games g ON g.id = r.game_id
+             WHERE rp.user_id = ? AND g.solo = ?`,
+          )
+          .all(userId, solo ? 1 : 0)
+  ) as { words_json: string }[];
 
   const byKey = new Map<string, Omit<WordFreq, "key">>();
   const lengthMap = new Map<number, LengthBucket>();
