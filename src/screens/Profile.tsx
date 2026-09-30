@@ -21,6 +21,7 @@ import type { Cell } from "@shared/types";
 import Avatar from "../components/Avatar";
 import { BadgeButton } from "../components/BadgeDialog";
 import AvatarCropper from "../components/AvatarCropper";
+import ProfileStats, { gamesFor, wordStatsFor, type StatsMode } from "../components/ProfileStats";
 import type { Crumb } from "../components/Breadcrumb";
 import WordTables, { PossibleWords } from "../components/WordTables";
 import WordLink from "../components/WordLink";
@@ -40,6 +41,7 @@ type Props = {
 export default function Profile({ onBack, onDisplayName, onSignOut, onTrail, resetRequest = 0 }: Props) {
   const { data: session } = authClient.useSession();
   const [tab, setTab] = useState<Tab>("badges");
+  const [statsMode, setStatsMode] = useState<StatsMode>("all");
   const [profile, setProfile] = useState<ProfilePayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [game, setGame] = useState<GameHistoryDetail | null>(null);
@@ -321,56 +323,12 @@ export default function Profile({ onBack, onDisplayName, onSignOut, onTrail, res
           </button>
         </form>
         {profile && (
-          <div className="profile-stats">
-            <Stat
-              label="Parties"
-              value={profile.stats.gamesPlayed}
-              hint={partyHint(profile.stats)}
-            />
-            <Stat
-              label="Mots"
-              value={profile.stats.wordsFound}
-              hint="Mots validés sur toutes tes manches, y compris ceux trouvés en même temps qu’un autre joueur."
-            />
-            <Stat
-              label="Points"
-              value={profile.stats.totalPoints}
-              hint="Cumul de tes scores de manches. Les mots partagés rapportent tout de même leurs points."
-            />
-            <Stat
-              label="Victoires"
-              value={profile.stats.wins}
-              hint="Nombre de fois où tu as fini premier d’une partie à plusieurs. Le solo ne compte pas."
-            />
-            <Stat
-              label="Manches"
-              value={profile.stats.roundsPlayed}
-              hint="Grilles jouées jusqu’au bout. Une partie peut contenir plusieurs manches."
-            />
-            <Stat
-              label="Mot le plus long"
-              value={profile.stats.longestWord > 0 ? profile.stats.longestWord : "—"}
-              hint={
-                profile.stats.longestWord > 0
-                  ? `${profile.stats.longestWord} lettre${profile.stats.longestWord > 1 ? "s" : ""} sur un seul mot validé.`
-                  : "La longueur de ton plus long mot validé apparaîtra ici."
-              }
-            />
-            <Stat
-              label="Meilleure manche"
-              value={profile.stats.bestRoundScore}
-              hint={
-                profile.stats.bestRoundWords > 0
-                  ? `${profile.stats.bestRoundScore} pts · ${profile.stats.bestRoundWords} mot${profile.stats.bestRoundWords > 1 ? "s" : ""} sur une même grille.`
-                  : "Ton meilleur score sur une seule grille."
-              }
-            />
-            <Stat
-              label="Mots uniques"
-              value={profile.stats.uniqueWords}
-              hint="Mots que tu étais seul à trouver. Les mots tapés en même temps que quelqu’un d’autre ne sont pas comptés ici."
-            />
-          </div>
+          <ProfileStats
+            stats={profile.stats}
+            modes={profile.modes}
+            mode={statsMode}
+            onModeChange={setStatsMode}
+          />
         )}
       </section>
 
@@ -393,7 +351,7 @@ export default function Profile({ onBack, onDisplayName, onSignOut, onTrail, res
           aria-selected={tab === "words"}
           onClick={() => setTab("words")}
         >
-          Mots {profile ? `(${profile.wordStats.distinct})` : ""}
+          Mots {profile ? `(${wordStatsFor(profile, statsMode).distinct})` : ""}
         </button>
         <button
           type="button"
@@ -402,62 +360,44 @@ export default function Profile({ onBack, onDisplayName, onSignOut, onTrail, res
           aria-selected={tab === "games"}
           onClick={() => setTab("games")}
         >
-          Parties {profile ? `(${profile.games.length})` : ""}
+          Parties {profile ? `(${gamesFor(profile.games, statsMode).length})` : ""}
         </button>
       </div>
 
       {!profile && !error && <p className="hint">Chargement…</p>}
 
       {profile && tab === "badges" && <BadgeBoard badges={profile.badges} />}
-      {profile && tab === "words" && <WordStatsBoard stats={profile.wordStats} />}
+      {profile && tab === "words" && (
+        <WordStatsBoard stats={wordStatsFor(profile, statsMode)} mode={statsMode} />
+      )}
       {profile && tab === "games" && (
-        <GameList games={profile.games} onOpen={openGame} />
+        <GameList games={gamesFor(profile.games, statsMode)} mode={statsMode} onOpen={openGame} />
       )}
     </div>
   );
 }
 
-function partyHint(stats: ProfilePayload["stats"]): string {
-  const parts: string[] = [];
-  if (stats.soloGames) parts.push(`${stats.soloGames} solo`);
-  if (stats.multiGames) parts.push(`${stats.multiGames} à plusieurs`);
-  if (parts.length === 0) {
-    return "Parties terminées pendant que tu étais connecté.";
-  }
-  return `Terminées en étant connecté · ${parts.join(" · ")}.`;
-}
 
-function Stat({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: number | string;
-  hint: string;
-}) {
-  return (
-    <div className="profile-stat">
-      <b>{value}</b>
-      <span>{label}</span>
-      <p>{hint}</p>
-    </div>
-  );
-}
 
 export function WordStatsBoard({
   stats,
+  mode = "all",
   voice = "self",
 }: {
   stats: WordStatsPayload;
+  mode?: StatsMode;
   voice?: "self" | "public";
 }) {
   if (stats.total === 0) {
     return (
       <p className="hint">
-        {voice === "public"
-          ? "Pas encore de stats de mots."
-          : "Tes stats de mots apparaîtront ici. Joue connecté pour suivre tes fréquences, longueurs et lettres favorites."}
+        {mode === "solo"
+          ? "Aucun mot validé en solo pour l’instant."
+          : mode === "multi"
+            ? "Aucun mot validé à plusieurs pour l’instant."
+            : voice === "public"
+              ? "Pas encore de stats de mots."
+              : "Tes stats de mots apparaîtront ici. Joue connecté pour suivre tes fréquences, longueurs et lettres favorites."}
       </p>
     );
   }
@@ -468,6 +408,9 @@ export function WordStatsBoard({
   return (
     <div className="word-stats">
       <section className="panel word-stats-summary">
+        {mode !== "all" && (
+          <p className="daily-kicker">{mode === "solo" ? "Parties solo" : "Parties à plusieurs"}</p>
+        )}
         <p>
           <b>{stats.total}</b> mot{stats.total > 1 ? "s" : ""} validé{stats.total > 1 ? "s" : ""} ·{" "}
           <b>{stats.distinct}</b> distinct{stats.distinct > 1 ? "s" : ""} · longueur moyenne{" "}
@@ -475,8 +418,14 @@ export function WordStatsBoard({
           {stats.averageLength > 1 ? "s" : ""}
         </p>
         <p className="muted">
-          {stats.uniqueCount} trouvé{stats.uniqueCount > 1 ? "s" : ""} sans personne d’autre ·{" "}
-          {stats.sharedCount} partagé{stats.sharedCount > 1 ? "s" : ""} · {stats.quCount} avec Qu
+          {mode === "solo" ? (
+            <>{stats.quCount} avec Qu</>
+          ) : (
+            <>
+              {stats.uniqueCount} trouvé{stats.uniqueCount > 1 ? "s" : ""} sans personne d’autre ·{" "}
+              {stats.sharedCount} partagé{stats.sharedCount > 1 ? "s" : ""} · {stats.quCount} avec Qu
+            </>
+          )}
         </p>
       </section>
 
@@ -545,8 +494,8 @@ export function WordStatsBoard({
           <h2>Plus longs</h2>
           <p className="muted word-stats-help">
             {voice === "public"
-              ? "Records de longueur, toutes parties confondues."
-              : "Tes records de longueur, toutes parties confondues."}
+              ? "Records de longueur."
+              : "Tes records de longueur."}
           </p>
           <WordRankList words={stats.longest} mode="length" />
         </section>
@@ -681,18 +630,24 @@ export function BadgeBoard({ badges }: { badges: BadgeView[] }) {
 export function GameList({
   games,
   onOpen,
+  mode = "all",
   voice = "self",
 }: {
   games: GameHistoryItem[];
   onOpen: (game: GameHistoryItem) => void;
+  mode?: StatsMode;
   voice?: "self" | "public";
 }) {
   if (games.length === 0) {
     return (
       <p className="hint">
-        {voice === "public"
-          ? "Aucune partie enregistrée."
-          : "Tes parties enregistrées apparaîtront ici. Joue connecté pour les retrouver plus tard."}
+        {mode === "solo"
+          ? "Aucune partie solo enregistrée."
+          : mode === "multi"
+            ? "Aucune partie à plusieurs enregistrée."
+            : voice === "public"
+              ? "Aucune partie enregistrée."
+              : "Tes parties enregistrées apparaîtront ici. Joue connecté pour les retrouver plus tard."}
       </p>
     );
   }

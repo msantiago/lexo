@@ -26,6 +26,24 @@ export type UserStats = {
   hostedGames: number;
 };
 
+export type ModeStats = {
+  games: number;
+  rounds: number;
+  words: number;
+  uniqueWords: number;
+  points: number;
+  averageRoundScore: number;
+  bestRoundScore: number;
+  bestRoundWords: number;
+  longestWord: number;
+  wins: number;
+};
+
+export type StatsByMode = {
+  solo: ModeStats;
+  multi: ModeStats;
+};
+
 export type HistoryPlayer = {
   name: string;
   color: string;
@@ -98,7 +116,9 @@ export type WordStatsPayload = {
 
 export type ProfilePayload = {
   stats: UserStats;
+  modes: StatsByMode;
   wordStats: WordStatsPayload;
+  wordStatsByMode: { solo: WordStatsPayload; multi: WordStatsPayload };
   badges: BadgeView[];
   games: GameHistoryItem[];
   recentUnlocks: BadgeDef[];
@@ -120,6 +140,13 @@ export type DirectoryStats = {
   wins: number;
 };
 
+export type DirectoryModeStats = {
+  games: number;
+  words: number;
+  points: number;
+  wins: number;
+};
+
 export type DirectoryUser = {
   id: string;
   name: string;
@@ -128,6 +155,7 @@ export type DirectoryUser = {
   online: boolean;
   play: DirectoryPlay | null;
   stats: DirectoryStats;
+  modes: { solo: DirectoryModeStats; multi: DirectoryModeStats };
 };
 
 export type PublicProfile = ProfilePayload & {

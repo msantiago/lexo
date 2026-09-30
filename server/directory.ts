@@ -1,7 +1,7 @@
 import type { DirectoryPlay, DirectoryStats, DirectoryUser } from "../shared/account.ts";
 import { listAuthUsers } from "./auth.ts";
 import { listUserSeats } from "./rooms.ts";
-import { listAllStats } from "./store.ts";
+import { listAllStats, listModeStats } from "./store.ts";
 
 const EMPTY_STATS: DirectoryStats = {
   gamesPlayed: 0,
@@ -11,6 +11,8 @@ const EMPTY_STATS: DirectoryStats = {
   totalPoints: 0,
   wins: 0,
 };
+
+const EMPTY_MODE = { games: 0, words: 0, points: 0, wins: 0 };
 
 function presenceRank(user: DirectoryUser): number {
   if (user.online && user.play) return 0;
@@ -33,6 +35,7 @@ export function buildDirectory(onlineUserIds: Iterable<string>): DirectoryUser[]
   const online = new Set(onlineUserIds);
   const seats = new Map(listUserSeats().map((seat) => [seat.userId, seat]));
   const stats = listAllStats();
+  const modes = listModeStats();
   const users = listAuthUsers().map((user) => {
     const seat = seats.get(user.id);
     const row = stats.get(user.id);
@@ -59,6 +62,7 @@ export function buildDirectory(onlineUserIds: Iterable<string>): DirectoryUser[]
             wins: row.wins,
           }
         : { ...EMPTY_STATS },
+      modes: modes.get(user.id) ?? { solo: { ...EMPTY_MODE }, multi: { ...EMPTY_MODE } },
     };
   });
   users.sort(

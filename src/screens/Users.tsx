@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { DirectoryUser } from "@shared/account";
+import type { DirectoryModeStats, DirectoryUser } from "@shared/account";
 import Avatar from "../components/Avatar";
+import { StatsModePicker, type StatsMode } from "../components/ProfileStats";
 import type { Crumb } from "../components/Breadcrumb";
 import { WatchButton } from "../components/RoundActions";
 import { displayNameFromUser } from "../lib/auth-client";
@@ -22,6 +23,7 @@ export default function Users({ onBack, onWatch, listRequest = 0, onTrail }: Pro
   const [users, setUsers] = useState<DirectoryUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
+  const [mode, setMode] = useState<StatsMode>("all");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: "points", dir: "desc" });
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -61,18 +63,23 @@ export default function Users({ onBack, onWatch, listRequest = 0, onTrail }: Pro
     };
   }, []);
 
+  const ranked = useMemo(
+    () => (users ?? []).filter((user) => mode === "all" || user.modes[mode].games > 0),
+    [users, mode],
+  );
+
   const counts = useMemo(() => {
-    const list = users ?? [];
+    const list = ranked;
     return {
       total: list.length,
       online: list.filter((user) => user.online).length,
       playing: list.filter((user) => user.play).length,
     };
-  }, [users]);
+  }, [ranked]);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("fr");
-    const list = (users ?? []).filter((user) => {
+    const list = ranked.filter((user) => {
       if (filter === "online" && !user.online) return false;
       if (filter === "playing" && !user.play) return false;
       if (!needle) return true;
@@ -81,12 +88,12 @@ export default function Users({ onBack, onWatch, listRequest = 0, onTrail }: Pro
     const byName = (a: DirectoryUser, b: DirectoryUser) =>
       displayNameFromUser(a.name, null).localeCompare(displayNameFromUser(b.name, null), "fr");
     list.sort((a, b) => {
-      const primary = compareUsers(a, b, sort.key);
+      const primary = compareUsers(a, b, sort.key, mode);
       if (primary !== 0) return sort.dir === "asc" ? primary : -primary;
       return byName(a, b);
     });
     return list;
-  }, [users, filter, query, sort]);
+  }, [ranked, filter, query, sort, mode]);
 
   const chooseSort = (key: SortKey) => {
     setSort((current) => {
@@ -95,6 +102,11 @@ export default function Users({ onBack, onWatch, listRequest = 0, onTrail }: Pro
       }
       return { key, dir: key === "name" || key === "status" ? "asc" : "desc" };
     });
+  };
+
+  const chooseMode = (next: StatsMode) => {
+    setMode(next);
+    if (next === "solo") setSort((current) => (current.key === "wins" ? { key: "points", dir: "desc" } : current));
   };
 
   if (selectedId) {
@@ -159,9 +171,17 @@ export default function Users({ onBack, onWatch, listRequest = 0, onTrail }: Pro
       {error && <p className="account-error">{error}</p>}
       {!users && !error && <p className="hint">Chargement des joueurs…</p>}
 
+      {users && users.length > 0 && <StatsModePicker mode={mode} onChange={chooseMode} className="users-modes" />}
+
       {users && visible.length === 0 && (
         <p className="hint">
-          {users.length === 0 ? "Aucun compte pour le moment." : "Aucun joueur ne correspond."}
+          {users.length === 0
+            ? "Aucun compte pour le moment."
+            : ranked.length === 0
+              ? mode === "solo"
+                ? "Personne n’a encore joué en solo."
+                : "Personne n’a encore joué à plusieurs."
+              : "Aucun joueur ne correspond."}
         </p>
       )}
 
@@ -175,7 +195,9 @@ export default function Users({ onBack, onWatch, listRequest = 0, onTrail }: Pro
                 <SortHeader label="Score" sortKey="points" sort={sort} onSort={chooseSort} wide numeric />
                 <SortHeader label="Parties" sortKey="games" sort={sort} onSort={chooseSort} wide numeric />
                 <SortHeader label="Mots" sortKey="words" sort={sort} onSort={chooseSort} wide numeric />
-                <SortHeader label="Victoires" sortKey="wins" sort={sort} onSort={chooseSort} wide numeric />
+                {mode !== "solo" && (
+                  <SortHeader label="Victoires" sortKey="wins" sort={sort} onSort={chooseSort} wide numeric />
+                )}
                 <th className="col-wide col-action">
                   <span className="visually-hidden">Actions</span>
                 </th>
@@ -186,6 +208,7 @@ export default function Users({ onBack, onWatch, listRequest = 0, onTrail }: Pro
                 <PlayerRow
                   key={user.id}
                   user={user}
+                  mode={mode}
                   onOpen={() => setSelectedId(user.id)}
                   onWatch={onWatch ? () => onWatch(user.id) : undefined}
                 />
@@ -227,20 +250,32 @@ function SortHeader({
   );
 }
 
-function compareUsers(a: DirectoryUser, b: DirectoryUser, key: SortKey): number {
+function statsFor(user: DirectoryUser, mode: StatsMode): DirectoryModeStats {
+  if (mode !== "all") return user.modes[mode];
+  return {
+    games: user.stats.gamesPlayed,
+    words: user.stats.wordsFound,
+    points: user.stats.totalPoints,
+    wins: user.stats.wins,
+  };
+}
+
+function compareUsers(a: DirectoryUser, b: DirectoryUser, key: SortKey, mode: StatsMode): number {
+  const sa = statsFor(a, mode);
+  const sb = statsFor(b, mode);
   switch (key) {
     case "name":
       return displayNameFromUser(a.name, null).localeCompare(displayNameFromUser(b.name, null), "fr");
     case "status":
       return presenceRank(a) - presenceRank(b);
     case "points":
-      return a.stats.totalPoints - b.stats.totalPoints;
+      return sa.points - sb.points;
     case "games":
-      return a.stats.gamesPlayed - b.stats.gamesPlayed;
+      return sa.games - sb.games;
     case "words":
-      return a.stats.wordsFound - b.stats.wordsFound;
+      return sa.words - sb.words;
     case "wins":
-      return a.stats.wins - b.stats.wins;
+      return sa.wins - sb.wins;
   }
 }
 
@@ -271,16 +306,19 @@ function FilterChip({
 
 function PlayerRow({
   user,
+  mode,
   onOpen,
   onWatch,
 }: {
   user: DirectoryUser;
+  mode: StatsMode;
   onOpen: () => void;
   onWatch?: () => void;
 }) {
   const name = displayNameFromUser(user.name, null);
   const status = playerStatus(user);
-  const points = user.stats.totalPoints.toLocaleString("fr-FR");
+  const stats = statsFor(user, mode);
+  const points = stats.points.toLocaleString("fr-FR");
   const watchButton = () => (user.play && onWatch ? <WatchButton onClick={onWatch} /> : null);
   return (
     <tr>
@@ -294,9 +332,9 @@ function PlayerRow({
         {status.label}
       </td>
       <td className="col-wide num player-score">{points}</td>
-      <td className="col-wide num">{user.stats.gamesPlayed.toLocaleString("fr-FR")}</td>
-      <td className="col-wide num">{user.stats.wordsFound.toLocaleString("fr-FR")}</td>
-      <td className="col-wide num">{user.stats.wins.toLocaleString("fr-FR")}</td>
+      <td className="col-wide num">{stats.games.toLocaleString("fr-FR")}</td>
+      <td className="col-wide num">{stats.words.toLocaleString("fr-FR")}</td>
+      {mode !== "solo" && <td className="col-wide num">{stats.wins.toLocaleString("fr-FR")}</td>}
       <td className="col-wide col-action">{watchButton()}</td>
       <td className="col-compact">
         <div className="player-side">
@@ -306,11 +344,15 @@ function PlayerRow({
             {watchButton()}
           </div>
           <p className="player-meta">
-            {countLabel(user.stats.gamesPlayed, "partie", "parties")}
+            {countLabel(stats.games, "partie", "parties")}
             {" · "}
-            {countLabel(user.stats.wordsFound, "mot", "mots")}
-            {" · "}
-            {countLabel(user.stats.wins, "victoire", "victoires")}
+            {countLabel(stats.words, "mot", "mots")}
+            {mode !== "solo" && (
+              <>
+                {" · "}
+                {countLabel(stats.wins, "victoire", "victoires")}
+              </>
+            )}
           </p>
         </div>
       </td>
