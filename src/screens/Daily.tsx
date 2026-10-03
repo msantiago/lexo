@@ -10,7 +10,13 @@ import {
   type DailySolution,
 } from "@shared/daily";
 import { COUNTDOWN_MS, countdownIndex, countdownRevealing, countdownShuffling } from "@shared/countdown";
-import { extendTypedWord, findPathForWord, foldKey, pathToWord } from "@shared/dice";
+import {
+  extendTypedWord,
+  findPathForWord,
+  foldKey,
+  letterNeedsBaseMark,
+  pathToWord,
+} from "@shared/dice";
 import { joinNames } from "@shared/round";
 import type { Cell, PossibleWord, WordFailReason } from "@shared/types";
 import type { Crumb } from "../components/Breadcrumb";
@@ -229,29 +235,27 @@ function DailyPlay({
     onFinish();
   }, [remaining, onFinish]);
 
-  const clearWord = () => {
-    window.clearTimeout(rejectTimer.current);
+  const clearPath = () => {
     setPath([]);
     setTyped("");
-    setFlash(null);
     setLocked(false);
   };
 
-  const showReject = (text: string, clearPath: boolean) => {
+  const flashBriefly = (kind: "success" | "fail") => {
     window.clearTimeout(rejectTimer.current);
-    setFeedback({ text, ok: false, id: Date.now() });
     setFlash(null);
-    window.setTimeout(() => setFlash("fail"), 0);
+    window.setTimeout(() => setFlash(kind), 0);
+    rejectTimer.current = window.setTimeout(() => {
+      setFlash((current) => (current === kind ? null : current));
+    }, 420);
+  };
+
+  const showReject = (text: string, keepPath = false) => {
+    setFeedback({ text, ok: false, id: Date.now() });
+    flashBriefly("fail");
     playFailSound();
     hapticFail();
-    if (clearPath) setLocked(true);
-    rejectTimer.current = window.setTimeout(() => {
-      setFlash((current) => (current === "fail" ? null : current));
-      if (!clearPath) return;
-      setPath([]);
-      setTyped("");
-      setLocked(false);
-    }, 680);
+    if (!keepPath) clearPath();
   };
 
   const submit = async (cells: number[]) => {
@@ -259,7 +263,7 @@ function DailyPlay({
     if (lockedRef.current || cells.length === 0 || Date.now() >= current.endsAt) return;
     const built = pathToWord(current.grid, cells);
     if (built.letters < 4) {
-      showReject(FAIL_MESSAGES["too-short"], true);
+      showReject(FAIL_MESSAGES["too-short"]);
       return;
     }
     setLocked(true);
@@ -281,16 +285,16 @@ function DailyPlay({
       return;
     }
     if (!data.ok || !data.words) {
-      showReject(FAIL_MESSAGES[data.reason ?? "unknown"], true);
+      showReject(FAIL_MESSAGES[data.reason ?? "unknown"]);
       return;
     }
     const found = data.words[data.words.length - 1];
     onPlay({ ...current, words: data.words, score: data.score ?? current.score });
-    setFlash("success");
     setFeedback({ text: found?.display ?? "", ok: true, id: Date.now() });
     playScoreSound(found?.letters ?? 4);
     hapticSuccess();
-    window.setTimeout(clearWord, 280);
+    flashBriefly("success");
+    clearPath();
   };
 
   useEffect(() => {
@@ -329,7 +333,7 @@ function DailyPlay({
       let nextTyped = extendTypedWord(play.grid, base, letter);
       if (nextTyped === null && base) nextTyped = extendTypedWord(play.grid, "", letter);
       if (nextTyped === null) {
-        showReject("Pas sur la grille", false);
+        showReject("Pas sur la grille", true);
         return;
       }
       if (nextTyped === typedRef.current && pathRef.current.length) return;
@@ -354,7 +358,6 @@ function DailyPlay({
             4 lettres · pas de féminin d’adjectif · infinitif et participes
           </div>
         </div>
-        <Timer remainingMs={remaining} totalMs={DAILY_DURATION_SEC * 1000} />
         <div className="play-top-actions">
           <button className="text-action" type="button" onClick={onLeave}>
             Quitter
@@ -365,22 +368,25 @@ function DailyPlay({
         <div key={feedback?.id} className={`feedback ${feedback?.ok ? "ok" : ""}`} aria-live="polite">
           {feedback?.text ?? ""}
         </div>
-        <CountdownGate startedAt={startedAt} now={now}>
-          <Board
-            grid={play.grid}
-            path={path}
-            flash={flash}
-            disabled={locked || counting || remaining <= 0}
-            shuffling={countdownShuffling(startedAt, now)}
-            revealing={countdownRevealing(startedAt, now)}
-            onPathChange={(next) => {
-              if (lockedRef.current) return;
-              setTyped("");
-              setPath(next);
-            }}
-            onSubmit={(next) => void submit(next)}
-          />
-        </CountdownGate>
+        <div className="board-stack">
+          <Timer remainingMs={remaining} totalMs={DAILY_DURATION_SEC * 1000} />
+          <CountdownGate startedAt={startedAt} now={now}>
+            <Board
+              grid={play.grid}
+              path={path}
+              flash={flash}
+              disabled={locked || counting || remaining <= 0}
+              shuffling={countdownShuffling(startedAt, now)}
+              revealing={countdownRevealing(startedAt, now)}
+              onPathChange={(next) => {
+                if (lockedRef.current) return;
+                setTyped("");
+                setPath(next);
+              }}
+              onSubmit={(next) => void submit(next)}
+            />
+          </CountdownGate>
+        </div>
         <p className={`preview ${preview ? "" : "empty"}`}>{preview || "Glisse ou tape un mot"}</p>
         <p className="hint">Clavier · Entrée pour valider · Qu = Q ou Qu</p>
         <WordList words={play.words.map((word) => ({ ...word, shared: false }))} />
@@ -688,7 +694,10 @@ function MiniGrid({ grid }: { grid: Cell[] }) {
     <div className="mini-board daily-grid" aria-hidden>
       {grid.map((cell, index) => (
         <div key={index} className={`mini-die ${cell.letter === "QU" ? "qu" : ""}`}>
-          <span className="die-face" style={{ transform: `rotate(${cell.rotation}deg)` }}>
+          <span
+            className={`die-face${letterNeedsBaseMark(cell.display) ? " marked" : ""}`}
+            style={{ transform: `rotate(${cell.rotation}deg)` }}
+          >
             {cell.display}
           </span>
         </div>

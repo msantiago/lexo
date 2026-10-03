@@ -3093,30 +3093,73 @@ button.badge-card:focus-visible {
   animation: letter-pop 0.28s cubic-bezier(0.2, 1.4, 0.4, 1);
 }
 
-.timer {
+.board-stack {
   display: grid;
-  place-items: center;
-  position: relative;
-  width: 118px;
-  height: 118px;
+  gap: 10px;
+  width: min(100%, 460px);
   margin: 0 auto;
 }
 
-.timer svg {
+.board-stack .board-burst-host,
+.board-stack .board-wrap,
+.board-stack .countdown-gate {
+  width: 100%;
+}
+
+.timer {
+  width: 100%;
+}
+
+.timer-track {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 34px;
+  border-radius: 999px;
+  background: rgba(8, 28, 26, 0.55);
+  border: 1px solid rgba(232, 184, 74, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.timer-fill {
   position: absolute;
   inset: 0;
-  transform: rotate(-90deg);
+  transform-origin: left center;
+  background: linear-gradient(90deg, #c7922e, var(--gold));
+  transition: transform 0.2s linear;
 }
 
-.timer .time {
+.timer-time {
+  position: relative;
+  z-index: 1;
   font-family: var(--font-dice);
-  font-size: 32px;
+  font-size: 18px;
   font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff8ee;
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.35),
+    0 0 10px rgba(0, 0, 0, 0.28);
+  font-variant-numeric: tabular-nums;
 }
 
-.timer.urgent .time {
-  color: var(--coral);
+.timer.urgent .timer-fill {
+  background: linear-gradient(90deg, #c23a2c, #ff5d4a);
+}
+
+.timer.urgent .timer-time {
   animation: pulse 0.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timer-fill {
+    transition: none;
+  }
+
+  .timer.urgent .timer-time {
+    animation: none;
+  }
 }
 
 @keyframes pulse {
@@ -3352,6 +3395,11 @@ button.badge-card:focus-visible {
 .die-face {
   display: block;
   line-height: 1;
+}
+
+.die-face.marked {
+  text-decoration: underline;
+  text-underline-offset: 0.12em;
 }
 
 .countdown-gate {
@@ -4409,13 +4457,12 @@ button.badge-card:focus-visible {
     padding-bottom: 20px;
   }
 
-  .timer {
-    width: 96px;
-    height: 96px;
+  .timer-track {
+    height: 30px;
   }
 
-  .timer .time {
-    font-size: 26px;
+  .timer-time {
+    font-size: 16px;
   }
 
   .words,
@@ -4426,6 +4473,68 @@ button.badge-card:focus-visible {
   .preview {
     min-height: 42px;
     font-size: 26px;
+  }
+}
+
+/* Grille quasi plein écran : téléphones uniquement, pas tablette ni desktop. */
+@media (max-width: 640px) {
+  .screen.play {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    box-sizing: border-box;
+    min-height: calc(100dvh - 68px - env(safe-area-inset-bottom, 0px));
+    padding:
+      max(6px, env(safe-area-inset-top, 0px))
+      max(6px, env(safe-area-inset-right, 0px))
+      12px
+      max(6px, env(safe-area-inset-left, 0px));
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .play.daily-play {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .screen.play .stage,
+  .play.daily-play .stage {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    min-height: 0;
+    width: 100%;
+  }
+
+  .play .board-stack {
+    width: min(100%, calc(100vw - 12px));
+    max-width: none;
+  }
+
+  .play .board-wrap {
+    width: 100%;
+    max-width: none;
+  }
+
+  .play .preview,
+  .play .feedback,
+  .play .observe-players {
+    width: min(100%, calc(100vw - 12px));
+  }
+
+  .screen.play .hint {
+    display: none;
+  }
+
+  .words,
+  .word-live {
+    max-height: 18vh;
   }
 }
 

@@ -130,35 +130,32 @@ export default function Play({ room, onLeave }: Props) {
     return () => clearInterval(id);
   }, []);
 
-  const clearWord = () => {
-    window.clearTimeout(rejectTimer.current);
-    setFlash(null);
+  const clearPath = () => {
     setDrawPath([]);
     setTyped("");
     setLocked(false);
   };
 
-  const showReject = (text: string, clearPath: boolean) => {
+  const flashBriefly = (kind: "success" | "fail") => {
     window.clearTimeout(rejectTimer.current);
-    setFeedback({ text, ok: false, id: Date.now() });
     setFlash(null);
-    window.setTimeout(() => setFlash("fail"), 0);
+    window.setTimeout(() => setFlash(kind), 0);
+    rejectTimer.current = window.setTimeout(() => {
+      setFlash((current) => (current === kind ? null : current));
+    }, 420);
+  };
+
+  const showReject = (text: string, keepPath = false) => {
+    setFeedback({ text, ok: false, id: Date.now() });
+    flashBriefly("fail");
     playFailSound();
     hapticFail();
-    if (clearPath) setLocked(true);
-    rejectTimer.current = window.setTimeout(() => {
-      setFlash((current) => (current === "fail" ? null : current));
-      if (!clearPath) return;
-      setDrawPath([]);
-      setTyped("");
-      setLocked(false);
-    }, 680);
+    if (!keepPath) clearPath();
   };
 
   useEffect(() => {
     const onResult = (result: WordSubmitResult) => {
       if (result.ok) {
-        setFlash("success");
         const text = result.shared
           ? "Déjà pris !"
           : result.word.points > 0
@@ -173,11 +170,11 @@ export default function Play({ room, onLeave }: Props) {
           playStolenSound();
         }
         hapticSuccess(result.shared);
-      } else {
-        showReject(FAIL_MESSAGES[result.reason], true);
+        flashBriefly("success");
+        clearPath();
         return;
       }
-      window.setTimeout(clearWord, 420);
+      showReject(FAIL_MESSAGES[result.reason]);
     };
     socket.on("word:result", onResult);
     const onShared = () => {
@@ -200,7 +197,7 @@ export default function Play({ room, onLeave }: Props) {
     }
     const built = pathToWord(room.grid, next);
     if (built.letters < room.settings.minLetters) {
-      showReject(FAIL_MESSAGES["too-short"], true);
+      showReject(FAIL_MESSAGES["too-short"]);
       return;
     }
     setLocked(true);
@@ -260,7 +257,7 @@ export default function Play({ room, onLeave }: Props) {
         nextTyped = extendTypedWord(grid, "", letter);
       }
       if (nextTyped === null) {
-        showReject("Pas sur la grille", false);
+        showReject("Pas sur la grille", true);
         return;
       }
       if (nextTyped === typedRef.current && pathRef.current.length) return;
@@ -297,7 +294,6 @@ export default function Play({ room, onLeave }: Props) {
           <div className="muted">{room.code}</div>
           {observing && <div className="observe-badge">Observateur</div>}
         </div>
-        <Timer remainingMs={remaining} totalMs={room.settings.durationSec * 1000} />
         <div className="play-top-actions">
           <LeaveButton
             onLeave={onLeave}
@@ -373,26 +369,29 @@ export default function Play({ room, onLeave }: Props) {
           {feedback?.text ?? ""}
         </div>
         {room.grid && (
-          <div className="board-burst-host">
-            <CountdownGate startedAt={room.startedAt} now={now}>
-              <Board
-                key={room.startedAt ?? room.round}
-                grid={room.grid}
-                path={path}
-                flash={flash}
-                disabled={observing || frozen}
-                shuffling={room.startedAt != null && countdownShuffling(room.startedAt, now)}
-                revealing={room.startedAt != null && countdownRevealing(room.startedAt, now)}
-                accent={observing ? watched?.color : undefined}
-                onPathChange={(p) => {
-                  if (observing || lockedRef.current) return;
-                  setTyped("");
-                  setDrawPath(p);
-                }}
-                onSubmit={submit}
-              />
-            </CountdownGate>
-            <ScoreBursts bursts={bursts} onDone={removeBurst} />
+          <div className="board-stack">
+            <Timer remainingMs={remaining} totalMs={room.settings.durationSec * 1000} />
+            <div className="board-burst-host">
+              <CountdownGate startedAt={room.startedAt} now={now}>
+                <Board
+                  key={room.startedAt ?? room.round}
+                  grid={room.grid}
+                  path={path}
+                  flash={flash}
+                  disabled={observing || frozen}
+                  shuffling={room.startedAt != null && countdownShuffling(room.startedAt, now)}
+                  revealing={room.startedAt != null && countdownRevealing(room.startedAt, now)}
+                  accent={observing ? watched?.color : undefined}
+                  onPathChange={(p) => {
+                    if (observing || lockedRef.current) return;
+                    setTyped("");
+                    setDrawPath(p);
+                  }}
+                  onSubmit={submit}
+                />
+              </CountdownGate>
+              <ScoreBursts bursts={bursts} onDone={removeBurst} />
+            </div>
           </div>
         )}
         <p className="hint">

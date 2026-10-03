@@ -6,27 +6,21 @@ type Props = {
 };
 
 export default function Timer({ remainingMs, totalMs }: Props) {
-  const ratio = totalMs > 0 ? remainingMs / totalMs : 0;
-  const r = 52;
-  const c = 2 * Math.PI * r;
+  const ratio = Math.min(1, Math.max(0, totalMs > 0 ? remainingMs / totalMs : 0));
   const urgent = remainingMs <= 10_000;
   return (
-    <div className={`timer ${urgent ? "urgent" : ""}`} aria-label="Chronomètre">
-      <svg viewBox="0 0 118 118">
-        <circle cx="59" cy="59" r={r} fill="none" stroke="rgba(255,246,234,0.12)" strokeWidth="8" />
-        <circle
-          cx="59"
-          cy="59"
-          r={r}
-          fill="none"
-          stroke={urgent ? "#ff5d4a" : "#e8b84a"}
-          strokeWidth="8"
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={c * (1 - ratio)}
-        />
-      </svg>
-      <div className="time">{formatTime(remainingMs)}</div>
+    <div
+      className={`timer${urgent ? " urgent" : ""}`}
+      role="timer"
+      aria-label={`Temps restant ${formatTime(remainingMs)}`}
+      aria-valuemin={0}
+      aria-valuemax={Math.round(totalMs / 1000)}
+      aria-valuenow={Math.max(0, Math.ceil(remainingMs / 1000))}
+    >
+      <div className="timer-track">
+        <div className="timer-fill" style={{ transform: `scaleX(${ratio})` }} />
+        <span className="timer-time">{formatTime(remainingMs)}</span>
+      </div>
     </div>
   );
 }
