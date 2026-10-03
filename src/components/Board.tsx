@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { letterNeedsBaseMark } from "@shared/dice";
 import type { Cell } from "@shared/types";
 import { playLetterBack, playLetterSelect } from "../lib/sfx";
 
@@ -132,7 +133,16 @@ function DieTile({
         flash && active ? flash : "",
       ].join(" ")}
     >
-      <span className={`die-face${shown === "Qu" ? " qu" : ""}`} style={{ transform: `rotate(${cell.rotation}deg)` }}>
+      <span
+        className={[
+          "die-face",
+          shown === "Qu" ? "qu" : "",
+          letterNeedsBaseMark(shown) ? "marked" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        style={{ transform: `rotate(${cell.rotation}deg)` }}
+      >
         {shown}
       </span>
     </div>

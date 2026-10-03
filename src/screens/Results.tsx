@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { letterNeedsBaseMark } from "@shared/dice";
 import { roundHeadline } from "@shared/round";
 import type { Cell, RoomView } from "@shared/types";
 import Avatar from "../components/Avatar";
@@ -175,7 +176,10 @@ function MiniGrid({ grid }: { grid: Cell[] }) {
     <div className="mini-board" aria-label="Grille de la manche">
       {grid.map((cell, i) => (
         <div key={i} className={`mini-die ${cell.letter === "QU" ? "qu" : ""}`}>
-          <span className="die-face" style={{ transform: `rotate(${cell.rotation}deg)` }}>
+          <span
+            className={`die-face${letterNeedsBaseMark(cell.display) ? " marked" : ""}`}
+            style={{ transform: `rotate(${cell.rotation}deg)` }}
+          >
             {cell.display}
           </span>
         </div>

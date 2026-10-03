@@ -38,6 +38,11 @@ export function toCell(face: string, rotation: DieRotation = 0): Cell {
   return { letter: face, display: face, letterCount: 1, rotation };
 }
 
+/** N and Z look alike when a die is turned; underline them like physical Boggle. */
+export function letterNeedsBaseMark(display: string): boolean {
+  return display === "N" || display === "Z";
+}
+
 export function rollGrid(shuffleLetters = false): Cell[] {
   return shuffle([...DICE]).map((die) => {
     const face = die[Math.floor(Math.random() * die.length)];

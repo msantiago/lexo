@@ -9,6 +9,7 @@ import type {
 import type { RoundSummary, SharedWord, SummaryWord, WordRecap } from "@shared/types";
 import { BADGE_CATEGORY_LABELS, type BadgeCategory, type BadgeView } from "@shared/badges";
 import { parseDailyGameId } from "@shared/daily";
+import { letterNeedsBaseMark } from "@shared/dice";
 import { difficultyLabel } from "@shared/rules";
 import type { Cell } from "@shared/types";
 import Avatar from "../components/Avatar";
@@ -640,7 +641,10 @@ function MiniGrid({ grid }: { grid: Cell[] }) {
     <div className="mini-board" aria-label="Grille de la manche">
       {grid.map((cell, i) => (
         <div key={i} className={`mini-die ${cell.letter === "QU" ? "qu" : ""}`}>
-          <span className="die-face" style={{ transform: `rotate(${cell.rotation}deg)` }}>
+          <span
+            className={`die-face${letterNeedsBaseMark(cell.display) ? " marked" : ""}`}
+            style={{ transform: `rotate(${cell.rotation}deg)` }}
+          >
             {cell.display}
           </span>
         </div>
