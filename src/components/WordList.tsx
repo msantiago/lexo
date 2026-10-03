@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
+import { wordPoints } from "@shared/dice";
 import type { FoundWord } from "@shared/types";
 
 export default function WordList({
@@ -21,21 +22,27 @@ export default function WordList({
           <table className="recap-table">
             <tbody>
               <AnimatePresence initial={false}>
-                {words.map((word) => (
-                  <motion.tr
-                    layout
-                    key={word.key}
-                    className={word.shared ? "shared" : undefined}
-                    initial={{ opacity: 0, x: 18 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ type: "spring", stiffness: 380, damping: 22 }}
-                  >
-                    <td>{word.display}</td>
-                    <motion.td className="recap-pts" key={word.points}>
-                      {word.points}
-                    </motion.td>
-                  </motion.tr>
-                ))}
+                {words.map((word) => {
+                  const pts = word.shared ? wordPoints(word.letters, false) : word.points;
+                  return (
+                    <motion.tr
+                      layout
+                      key={word.key}
+                      className={word.shared ? "shared" : undefined}
+                      initial={{ opacity: 0, x: 18 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ type: "spring", stiffness: 380, damping: 22 }}
+                    >
+                      <td>{word.display}</td>
+                      <motion.td
+                        className={`recap-pts${word.shared ? " dim" : ""}`}
+                        key={`${word.key}-${pts}-${word.shared ? "shared" : "own"}`}
+                      >
+                        {pts}
+                      </motion.td>
+                    </motion.tr>
+                  );
+                })}
               </AnimatePresence>
             </tbody>
           </table>

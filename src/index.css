@@ -3846,6 +3846,10 @@ button.badge-card:focus-visible {
   white-space: nowrap;
 }
 
+.recap-table .recap-pts.dim {
+  color: var(--text-muted);
+}
+
 .rank-table .recap-pts {
   width: 1%;
   padding-left: 14px;
