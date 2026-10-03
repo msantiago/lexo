@@ -8,6 +8,7 @@ import type {
 } from "@shared/account";
 import type { RoundSummary, SharedWord, SummaryWord, WordRecap } from "@shared/types";
 import { BADGE_CATEGORY_LABELS, type BadgeCategory, type BadgeView } from "@shared/badges";
+import { parseDailyGameId } from "@shared/daily";
 import { difficultyLabel } from "@shared/rules";
 import type { Cell } from "@shared/types";
 import Avatar from "../components/Avatar";
@@ -59,7 +60,10 @@ export default function Profile({ onBack, onDisplayName, onSignOut, onTrail, res
     }
     onTrail([
       { label: "Compte", onClick: () => setGame(null) },
-      { label: game.solo ? "Partie solo" : "Partie à plusieurs" },
+      {
+        label:
+          game.kind === "daily" ? "Lexo du jour" : game.solo ? "Partie solo" : "Partie à plusieurs",
+      },
     ]);
     return () => onTrail([]);
   }, [game, view, onTrail]);
@@ -86,7 +90,9 @@ export default function Profile({ onBack, onDisplayName, onSignOut, onTrail, res
 
   const openGame = async (item: GameHistoryItem) => {
     setError(null);
-    const res = await fetch(`/api/me/games/${item.id}`, { credentials: "include" });
+    const res = await fetch(`/api/me/games/${encodeURIComponent(item.id)}`, {
+      credentials: "include",
+    });
     if (!res.ok) {
       setError("Impossible d’ouvrir cette partie.");
       return;
@@ -466,12 +472,17 @@ export function GameList({
         <li key={game.id}>
           <button className="history-card" type="button" onClick={() => onOpen(game)}>
             <div className="history-card-head">
-              <span className={`lobby-room-phase ${game.solo ? "waiting" : "started"}`}>
-                {game.solo ? "Solo" : "Multijoueur"}
+              <span
+                className={`lobby-room-phase ${
+                  game.kind === "daily" ? "results" : game.solo ? "waiting" : "started"
+                }`}
+              >
+                {game.kind === "daily" ? "Lexo du jour" : game.solo ? "Solo" : "Multijoueur"}
               </span>
               <span className="muted">
-                {game.roundCount} manche{game.roundCount > 1 ? "s" : ""} ·{" "}
-                {difficultyLabel(game.difficulty)}
+                {game.kind === "daily"
+                  ? formatDailyDay(game.id)
+                  : `${game.roundCount} manche${game.roundCount > 1 ? "s" : ""} · ${difficultyLabel(game.difficulty)}`}
               </span>
               <time className="muted" dateTime={new Date(game.updatedAt).toISOString()}>
                 {formatWhen(game.updatedAt)}
@@ -505,20 +516,26 @@ export function GameDetail({
   game: GameHistoryDetail;
   voice?: "self" | "public";
 }) {
+  const daily = game.kind === "daily";
   return (
     <div className="profile profile-detail">
       <div className="profile-head">
-        <h1>{game.solo ? "Partie solo" : "Partie à plusieurs"}</h1>
+        <h1>
+          {daily ? "Lexo du jour" : game.solo ? "Partie solo" : "Partie à plusieurs"}
+        </h1>
       </div>
       <p className="hint">
-        {difficultyLabel(game.settings.difficulty)} · {game.rounds.length} manche
-        {game.rounds.length > 1 ? "s" : ""}
+        {daily
+          ? `${formatDailyDay(game.id)} · ${difficultyLabel(game.settings.difficulty)}`
+          : `${difficultyLabel(game.settings.difficulty)} · ${game.rounds.length} manche${
+              game.rounds.length > 1 ? "s" : ""
+            }`}
       </p>
       {game.rounds.map((round) => {
         const summary = withEntryOrder(round.summary ?? summaryFromRecap(round.recap), round.recap);
         return (
           <section className="panel history-round" key={round.round}>
-            <h2>Manche {round.round}</h2>
+            <h2>{daily ? "Grille du jour" : `Manche ${round.round}`}</h2>
             <div className="history-round-body">
               {round.grid && <MiniGrid grid={round.grid} />}
               <ul className="lobby-room-players scored">
@@ -642,5 +659,22 @@ function formatWhen(ts: number): string {
     }).format(new Date(ts));
   } catch {
     return "";
+  }
+}
+
+function formatDailyDay(gameId: string): string {
+  const day = parseDailyGameId(gameId);
+  if (!day) return "Lexo du jour";
+  const [year, month, date] = day.split("-").map(Number);
+  try {
+    return new Intl.DateTimeFormat("fr", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(new Date(Date.UTC(year, (month || 1) - 1, date || 1)));
+  } catch {
+    return day;
   }
 }

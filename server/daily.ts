@@ -2,12 +2,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import { COUNTDOWN_MS, roundEndsAt } from "../shared/countdown.ts";
+import type { GameHistoryDetail, GameHistoryItem } from "../shared/account.ts";
 import {
   DAILY_DURATION_SEC,
+  dailyGameId,
   dailyRating,
   fieldIndex,
   gridPoints,
   parisDay,
+  parseDailyGameId,
   previousParisDay,
   streakDays,
   type DailyArchiveDetail,
@@ -19,10 +22,20 @@ import {
   type DailyStanding,
 } from "../shared/daily.ts";
 import { isValidPath, pathToWord, wordPoints } from "../shared/dice.ts";
-import { DEFAULT_SETTINGS, type Cell, type GameSettings, type PossibleWord, type WordFailReason } from "../shared/types.ts";
+import {
+  DEFAULT_SETTINGS,
+  PLAYER_COLORS,
+  type Cell,
+  type FoundWord,
+  type GameSettings,
+  type PossibleWord,
+  type WordFailReason,
+} from "../shared/types.ts";
 import { findAuthUser } from "./auth.ts";
 import { lookupWord } from "./dictionary.ts";
 import { rollPlayableGrid } from "./solver.ts";
+
+const DAILY_HISTORY_COLOR = PLAYER_COLORS[3];
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const db = new Database(path.join(here, "../data/lexo.sqlite"));
@@ -402,5 +415,136 @@ export async function finishDaily(userId: string, name: string): Promise<DailyOv
     saveEntry(current);
   }
   return await dailyOverview(userId, name);
+}
+
+/** Parties Lexo du jour terminées, pour l’historique profil. */
+export function listDailyGames(userId: string): GameHistoryItem[] {
+  const rows = db
+    .prepare(
+      `SELECT e.day, e.name, e.score, e.started_at, e.finished_at, p.settings_json
+       FROM daily_entries e
+       JOIN daily_puzzles p ON p.day = e.day
+       WHERE e.user_id = ? AND e.finished_at IS NOT NULL
+       ORDER BY e.finished_at DESC
+       LIMIT 80`,
+    )
+    .all(userId) as {
+    day: string;
+    name: string;
+    score: number;
+    started_at: number;
+    finished_at: number;
+    settings_json: string;
+  }[];
+
+  return rows.map((row) => {
+    const settings = parseSettings(row.settings_json);
+    const name = playerName(userId, row.name);
+    return {
+      id: dailyGameId(row.day),
+      kind: "daily" as const,
+      solo: true,
+      createdAt: row.started_at,
+      updatedAt: row.finished_at,
+      roundCount: 1,
+      difficulty: settings.difficulty,
+      yourScore: row.score,
+      players: [{ name, color: DAILY_HISTORY_COLOR, score: row.score, you: true }],
+    };
+  });
+}
+
+export function getDailyGame(userId: string, gameId: string): GameHistoryDetail | null {
+  const day = parseDailyGameId(gameId);
+  if (!day) return null;
+  const row = db
+    .prepare(
+      `SELECT e.day, e.name, e.score, e.words_json, e.started_at, e.finished_at,
+              p.grid_json, p.words_json AS puzzle_words_json, p.settings_json
+       FROM daily_entries e
+       JOIN daily_puzzles p ON p.day = e.day
+       WHERE e.user_id = ? AND e.day = ? AND e.finished_at IS NOT NULL`,
+    )
+    .get(userId, day) as
+    | {
+        day: string;
+        name: string;
+        score: number;
+        words_json: string;
+        started_at: number;
+        finished_at: number;
+        grid_json: string;
+        puzzle_words_json: string;
+        settings_json: string;
+      }
+    | undefined;
+  if (!row) return null;
+
+  const settings = parseSettings(row.settings_json);
+  const name = playerName(userId, row.name);
+  const found = parseWords(row.words_json);
+  const words: FoundWord[] = found.map((word) => ({
+    key: word.key,
+    display: word.display,
+    letters: word.letters,
+    points: word.points,
+    shared: false,
+  }));
+  const playerId = "daily";
+  const revealed = day < parisDay();
+  const allWords = revealed ? puzzleWords(row.puzzle_words_json) : [];
+  const foundKeys = new Set(words.map((word) => word.key));
+  const missed = allWords.filter((word) => !foundKeys.has(word.key));
+
+  return {
+    id: dailyGameId(day),
+    kind: "daily",
+    solo: true,
+    createdAt: row.started_at,
+    settings,
+    rounds: [
+      {
+        round: 1,
+        startedAt: row.started_at,
+        endedAt: row.finished_at,
+        grid: revealed ? (JSON.parse(row.grid_json) as Cell[]) : null,
+        recap: [
+          {
+            playerId,
+            name,
+            color: DAILY_HISTORY_COLOR,
+            words,
+            roundScore: row.score,
+          },
+        ],
+        summary: {
+          unique: words.map((word, order) => ({
+            key: `${playerId}-${word.key}`,
+            display: word.display,
+            letters: word.letters,
+            points: word.points,
+            playerId,
+            name,
+            color: DAILY_HISTORY_COLOR,
+            likedBy: [],
+            order,
+          })),
+          shared: [],
+          rejected: [],
+          missed,
+          possibleCount: revealed ? allWords.length : words.length,
+        },
+        players: [{ name, color: DAILY_HISTORY_COLOR, score: row.score, you: true }],
+      },
+    ],
+  };
+}
+
+function parseSettings(raw: string): GameSettings {
+  try {
+    return { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<GameSettings>) };
+  } catch {
+    return { ...DAILY_SETTINGS };
+  }
 }
 

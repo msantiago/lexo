@@ -102,6 +102,19 @@ export type DailyArchiveDetail = DailyArchiveRow & {
   words: PossibleWord[] | null;
 };
 
+/** Préfixe des ids d’historique pour le Lexo du jour (`daily:AAAA-MM-JJ`). */
+export const DAILY_GAME_PREFIX = "daily:";
+
+export function dailyGameId(day: string): string {
+  return `${DAILY_GAME_PREFIX}${day}`;
+}
+
+export function parseDailyGameId(id: string): string | null {
+  if (!id.startsWith(DAILY_GAME_PREFIX)) return null;
+  const day = id.slice(DAILY_GAME_PREFIX.length);
+  return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : null;
+}
+
 /** Jour calendaire à Paris, sous la forme AAAA-MM-JJ. */
 export function parisDay(now = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {
