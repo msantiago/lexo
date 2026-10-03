@@ -4,7 +4,6 @@ import { difficultyLabel } from "@shared/rules";
 import Landing from "./Landing";
 import Avatar from "../components/Avatar";
 import Breadcrumb, { type Crumb } from "../components/Breadcrumb";
-import LeaveButton from "../components/LeaveButton";
 import { JoinButton, WatchButton } from "../components/RoundActions";
 import FloatingLetters from "../components/FloatingLetters";
 import LexoLogo from "../components/LexoLogo";
@@ -19,28 +18,24 @@ import Users from "./Users";
 
 type Props = {
   name: string;
-  admin?: boolean;
   onName: (name: string) => void;
   onSolo: () => void;
   onCreate: () => void;
   onJoin: (code: string) => void;
   onObserve?: (code: string) => void;
   onWatch?: (userId: string) => void;
-  onCloseRoom?: (code: string) => void;
   info?: ReactNode;
   onExitInfo?: () => void;
 };
 
 export default function Home({
   name,
-  admin,
   onName,
   onSolo,
   onCreate,
   onJoin,
   onObserve,
   onWatch,
-  onCloseRoom,
   info,
   onExitInfo,
 }: Props) {
@@ -248,10 +243,8 @@ export default function Home({
               rooms={rooms}
               name={name}
               ready={ready}
-              admin={admin}
               onJoin={onJoin}
               onObserve={onObserve}
-              onCloseRoom={admin ? onCloseRoom : undefined}
             />
           </section>
         </>
@@ -285,20 +278,16 @@ function LobbyRoomGroup({
   rooms,
   name,
   ready,
-  admin,
   onJoin,
   onObserve,
-  onCloseRoom,
 }: {
   title: string;
   empty: string;
   rooms: LobbyRoom[];
   name: string;
   ready: boolean;
-  admin?: boolean;
   onJoin: (code: string) => void;
   onObserve?: (code: string) => void;
-  onCloseRoom?: (code: string) => void;
 }) {
   return (
     <div className="lobby-group">
@@ -332,7 +321,6 @@ function LobbyRoomGroup({
                     !nameTaken &&
                     (room.phase === "lobby" || room.allowJoinMidGame))
                 }
-                admin={admin}
                 onJoin={() => {
                   unlockAudio();
                   onJoin(room.code);
@@ -345,7 +333,6 @@ function LobbyRoomGroup({
                       }
                     : undefined
                 }
-                onClose={onCloseRoom ? () => onCloseRoom(room.code) : undefined}
               />
             );
           })}
@@ -361,20 +348,16 @@ function LobbyRoomCard({
   canRejoin,
   canContinue,
   canJoin,
-  admin,
   onJoin,
   onObserve,
-  onClose,
 }: {
   room: LobbyRoom;
   nameTaken: boolean;
   canRejoin: boolean;
   canContinue: boolean;
   canJoin: boolean;
-  admin?: boolean;
   onJoin: () => void;
   onObserve?: () => void;
-  onClose?: () => void;
 }) {
   const started = room.phase !== "lobby";
   const playing = room.phase === "playing";
@@ -427,10 +410,8 @@ function LobbyRoomCard({
         canRejoin={canRejoin}
         canContinue={canContinue}
         nameTaken={nameTaken}
-        admin={admin}
         onJoin={onJoin}
         onObserve={onObserve}
-        onClose={onClose}
       />
     </li>
   );
@@ -455,20 +436,16 @@ function RoomActions({
   canRejoin,
   canContinue,
   nameTaken,
-  admin,
   onJoin,
   onObserve,
-  onClose,
 }: {
   room: LobbyRoom;
   canJoin: boolean;
   canRejoin: boolean;
   canContinue: boolean;
   nameTaken: boolean;
-  admin?: boolean;
   onJoin: () => void;
   onObserve?: () => void;
-  onClose?: () => void;
 }) {
   const full = room.playerCount >= MAX_PLAYERS;
   const joinClosed = room.phase !== "lobby" && !room.allowJoinMidGame;
@@ -487,16 +464,6 @@ function RoomActions({
         </button>
       )}
       {!room.mine && !room.solo && <JoinButton label={joinLabel} disabled={!canJoin} onClick={onJoin} />}
-      {admin && onClose && (
-        <LeaveButton
-          compact
-          onLeave={onClose}
-          label="Fermer"
-          title="Fermer cette partie ?"
-          message="Les joueurs sont renvoyés à l’accueil. Cette partie ne reprendra pas."
-          confirmLabel="Fermer"
-        />
-      )}
     </div>
   );
 }

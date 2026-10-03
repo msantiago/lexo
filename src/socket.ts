@@ -23,7 +23,6 @@ export type ClientToServer = {
   "room:rejoin": (data: { code: string; playerId: string }) => void;
   "room:settings": (settings: Partial<GameSettings>) => void;
   "room:leave": () => void;
-  "room:close": (data: { code: string }) => void;
   "game:start": () => void;
   "game:rematch": () => void;
   "game:word": (data: { cells: number[] }) => void;

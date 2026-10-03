@@ -17,10 +17,9 @@ type Props = {
   onNext: () => void;
   onRematch: () => void;
   onLeave: () => void;
-  onCloseRoom?: () => void;
 };
 
-export default function Results({ room, isHost, admin, onNext, onRematch, onLeave, onCloseRoom }: Props) {
+export default function Results({ room, isHost, admin, onNext, onRematch, onLeave }: Props) {
   const [starting, setStarting] = useState(false);
   const ranked = [...room.players].sort(
     (a, b) => b.totalScore - a.totalScore || b.roundScore - a.roundScore,
@@ -120,15 +119,6 @@ export default function Results({ room, isHost, admin, onNext, onRematch, onLeav
                 }
                 confirmLabel={room.observing ? "Arrêter" : "Quitter"}
               />
-              {admin && onCloseRoom && (
-                <LeaveButton
-                  onLeave={onCloseRoom}
-                  label="Fermer le salon"
-                  title="Fermer le salon ?"
-                  message="La partie s’arrête tout de suite, pour toi et pour les autres joueurs."
-                  confirmLabel="Fermer"
-                />
-              )}
             </div>
           </div>
           <div className="podium">
