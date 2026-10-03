@@ -37,6 +37,9 @@ function sortWords<T extends { letters: number; display: string; points?: number
         const bo = b.word.order ?? Number.MAX_SAFE_INTEGER;
         return ao - bo || a.index - b.index;
       }
+      if (mode === "alpha") {
+        return a.word.display.localeCompare(b.word.display, "fr") || a.index - b.index;
+      }
       const byPoints = (b.word.points ?? 0) - (a.word.points ?? 0);
       if (byPoints) return byPoints;
       const byLetters = b.word.letters - a.word.letters;
@@ -82,6 +85,14 @@ export default function WordTables({ summary, youId, canLike = false, admin, onA
             onClick={() => choose("entry")}
           >
             Ordre de saisie
+          </button>
+          <button
+            type="button"
+            className={order === "alpha" ? "on" : ""}
+            aria-pressed={order === "alpha"}
+            onClick={() => choose("alpha")}
+          >
+            A–Z
           </button>
         </div>
       )}
@@ -147,7 +158,7 @@ export default function WordTables({ summary, youId, canLike = false, admin, onA
                         <RejectedAction word={word} admin={admin} onAddWord={onAddWord} />
                       </td>
                     )}
-                    <td className="recap-pts">{wordPoints(word.letters, (word.names ?? []).length > 1)}</td>
+                    <td className="recap-pts dim">{wordPoints(word.letters, false)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -232,7 +243,7 @@ function SharedWordRow({
           />
         </td>
       )}
-      <td className="recap-pts">0</td>
+      <td className="recap-pts dim">{wordPoints(word.letters, false)}</td>
     </tr>
   );
 }

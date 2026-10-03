@@ -2,11 +2,15 @@ const SHOW_OTHER_SCORES_KEY = "lexo:showOtherScores";
 const FOUND_WORD_ORDER_KEY = "lexo:foundWordOrder";
 const FOUND_WORD_ORDER_EVENT = "lexo:found-word-order";
 
-export type FoundWordOrder = "letters" | "entry";
+export type FoundWordOrder = "letters" | "entry" | "alpha";
+
+const FOUND_WORD_ORDERS = new Set<FoundWordOrder>(["letters", "entry", "alpha"]);
 
 export function loadFoundWordOrder(): FoundWordOrder {
   try {
-    return localStorage.getItem(FOUND_WORD_ORDER_KEY) === "entry" ? "entry" : "letters";
+    const raw = localStorage.getItem(FOUND_WORD_ORDER_KEY);
+    if (raw === "entry" || raw === "alpha" || raw === "letters") return raw;
+    return "letters";
   } catch {
     return "letters";
   }
@@ -24,7 +28,7 @@ export function saveFoundWordOrder(value: FoundWordOrder) {
 export function onFoundWordOrder(listener: (value: FoundWordOrder) => void) {
   const onChange = (event: Event) => {
     const value = (event as CustomEvent<FoundWordOrder>).detail;
-    if (value === "letters" || value === "entry") listener(value);
+    if (FOUND_WORD_ORDERS.has(value)) listener(value);
   };
   window.addEventListener(FOUND_WORD_ORDER_EVENT, onChange);
   return () => window.removeEventListener(FOUND_WORD_ORDER_EVENT, onChange);
