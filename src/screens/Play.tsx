@@ -30,12 +30,10 @@ import { socket } from "../socket";
 
 type Props = {
   room: RoomView;
-  admin?: boolean;
   onLeave: () => void;
-  onCloseRoom?: () => void;
 };
 
-export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
+export default function Play({ room, onLeave }: Props) {
   const observing = room.observing;
   const [drawPath, setDrawPath] = useState<number[]>([]);
   const [flash, setFlash] = useState<"success" | "fail" | null>(null);
@@ -301,16 +299,6 @@ export default function Play({ room, admin, onLeave, onCloseRoom }: Props) {
         </div>
         <Timer remainingMs={remaining} totalMs={room.settings.durationSec * 1000} />
         <div className="play-top-actions">
-          {admin && onCloseRoom && (
-            <LeaveButton
-              onLeave={onCloseRoom}
-              label="Fermer"
-              title="Fermer cette partie ?"
-              message="La partie s’arrête tout de suite, pour toi et pour les autres joueurs."
-              confirmLabel="Fermer"
-              compact
-            />
-          )}
           <LeaveButton
             onLeave={onLeave}
             label="Quitter"

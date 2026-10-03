@@ -213,10 +213,6 @@ export default function App() {
     socket.emit("lobby:list");
   };
 
-  const closeRoom = (code: string) => {
-    socket.emit("room:close", { code });
-  };
-
   const isHost = Boolean(room && playerId && room.hostId === playerId);
 
   return (
@@ -238,14 +234,12 @@ export default function App() {
       {(!room || legal) && (
         <Home
           name={name}
-          admin={admin}
           onName={setName}
           onSolo={() => socket.emit("room:create", { name, solo: true })}
           onCreate={() => socket.emit("room:create", { name, solo: false })}
           onJoin={(code) => socket.emit("room:join", { code, name })}
           onObserve={(code) => socket.emit("room:observe", { code, name })}
           onWatch={(userId) => socket.emit("room:watch", { userId, name })}
-          onCloseRoom={closeRoom}
           info={
             isAuthPath(path) ? (
               <Auth mode={isSignUpPath(path) ? "signup" : "signin"} onDisplayName={setName} />
@@ -271,9 +265,7 @@ export default function App() {
           onLeave={leave}
         />
       )}
-      {!legal && room?.phase === "playing" && (
-        <Play room={room} admin={admin} onLeave={leave} onCloseRoom={() => closeRoom(room.code)} />
-      )}
+      {!legal && room?.phase === "playing" && <Play room={room} onLeave={leave} />}
       {!legal && room?.phase === "results" && (
         <Results
           room={room}
@@ -282,7 +274,6 @@ export default function App() {
           onNext={() => socket.emit("game:start")}
           onRematch={() => socket.emit("game:rematch")}
           onLeave={leave}
-          onCloseRoom={() => closeRoom(room.code)}
         />
       )}
       <CreditsFooter />
