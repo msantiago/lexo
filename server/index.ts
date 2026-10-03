@@ -97,7 +97,7 @@ app.get("/api/users/:id", (req, res) => {
 
 app.get("/api/users/:id/games/:gameId", (req, res) => {
   const id = userIdParam(req.params.id);
-  const gameId = userIdParam(req.params.gameId);
+  const gameId = gameIdParam(req.params.gameId);
   if (!id || !gameId || !findAuthUser(id)) {
     res.status(404).json({ error: "Partie introuvable" });
     return;
@@ -233,7 +233,12 @@ app.get("/api/me/games/:id", async (req, res) => {
     res.status(401).json({ error: "Non connecté" });
     return;
   }
-  const game = getGame(session.user.id, String(req.params.id ?? ""));
+  const gameId = gameIdParam(req.params.id);
+  if (!gameId) {
+    res.status(404).json({ error: "Partie introuvable" });
+    return;
+  }
+  const game = getGame(session.user.id, gameId);
   if (!game) {
     res.status(404).json({ error: "Partie introuvable" });
     return;
@@ -560,6 +565,13 @@ function onlineUserIds(): Set<string> {
 function userIdParam(raw: unknown): string | null {
   const id = Array.isArray(raw) ? String(raw[0] ?? "") : String(raw ?? "");
   return /^[a-f0-9]{16,64}$/i.test(id) ? id : null;
+}
+
+function gameIdParam(raw: unknown): string | null {
+  const id = decodeURIComponent(Array.isArray(raw) ? String(raw[0] ?? "") : String(raw ?? ""));
+  if (/^[a-f0-9]{16,64}$/i.test(id)) return id;
+  if (/^daily:\d{4}-\d{2}-\d{2}$/.test(id)) return id;
+  return null;
 }
 
 function requireUser(socket: {

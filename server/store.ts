@@ -39,6 +39,7 @@ import type {
   WordRecap,
 } from "../shared/types.ts";
 import { DEFAULT_SETTINGS } from "../shared/types.ts";
+import { getDailyGame, listDailyGames } from "./daily.ts";
 
 export type RoundSnapshot = {
   gameId: string | null;
@@ -562,13 +563,15 @@ export function listGames(userId: string): GameHistoryItem[] {
     preview_json: string;
   }[];
 
-  return rows.map((row) => {
+  const regular = rows.map((row) => {
     const settings = parseJson<GameSettings>(row.settings_json, DEFAULT_SETTINGS);
     const players = previewPlayers(row.preview_json, userId);
     const preview = parseJson<{ roundCount?: number }>(row.preview_json, {});
+    const solo = Boolean(row.solo);
     return {
       id: row.id,
-      solo: Boolean(row.solo),
+      kind: solo ? ("solo" as const) : ("multi" as const),
+      solo,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       roundCount: preview.roundCount ?? 1,
@@ -577,9 +580,16 @@ export function listGames(userId: string): GameHistoryItem[] {
       players,
     };
   });
+
+  return [...regular, ...listDailyGames(userId)]
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .slice(0, 80);
 }
 
 export function getGame(userId: string, gameId: string): GameHistoryDetail | null {
+  const daily = getDailyGame(userId, gameId);
+  if (daily) return daily;
+
   const allowed = db
     .prepare(
       `SELECT 1 AS ok FROM rounds r
@@ -616,9 +626,11 @@ export function getGame(userId: string, gameId: string): GameHistoryDetail | nul
     `SELECT user_id, name, color, total_score FROM round_players WHERE round_id = ?`,
   );
 
+  const solo = Boolean(game.solo);
   return {
     id: game.id,
-    solo: Boolean(game.solo),
+    kind: solo ? ("solo" as const) : ("multi" as const),
+    solo,
     createdAt: game.created_at,
     settings: parseJson<GameSettings>(game.settings_json, DEFAULT_SETTINGS),
     rounds: rounds.map((round) => {

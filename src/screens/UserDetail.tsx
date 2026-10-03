@@ -62,7 +62,7 @@ export default function UserDetail({ userId, onBack, onWatch, onTrail }: Props) 
 
   const openGame = async (item: GameHistoryItem) => {
     setError(null);
-    const res = await fetch(`/api/users/${userId}/games/${item.id}`);
+    const res = await fetch(`/api/users/${userId}/games/${encodeURIComponent(item.id)}`);
     if (!res.ok) {
       setError("Impossible d’ouvrir cette partie.");
       return;
@@ -77,7 +77,10 @@ export default function UserDetail({ userId, onBack, onWatch, onTrail }: Props) 
     const crumbs: Crumb[] = [{ label: "Joueurs", onClick: onBack }];
     if (game) {
       crumbs.push({ label: name || "Joueur", onClick: () => setGame(null) });
-      crumbs.push({ label: game.solo ? "Partie solo" : "Partie à plusieurs" });
+      crumbs.push({
+        label:
+          game.kind === "daily" ? "Lexo du jour" : game.solo ? "Partie solo" : "Partie à plusieurs",
+      });
     } else {
       crumbs.push({ label: name || "Joueur" });
     }

@@ -51,8 +51,11 @@ export type HistoryPlayer = {
   you: boolean;
 };
 
+export type GameHistoryKind = "solo" | "multi" | "daily";
+
 export type GameHistoryItem = {
   id: string;
+  kind: GameHistoryKind;
   solo: boolean;
   createdAt: number;
   updatedAt: number;
@@ -74,6 +77,7 @@ export type HistoryRound = {
 
 export type GameHistoryDetail = {
   id: string;
+  kind: GameHistoryKind;
   solo: boolean;
   createdAt: number;
   settings: GameSettings;

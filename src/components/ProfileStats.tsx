@@ -161,7 +161,9 @@ export function StatsModePicker({
 }
 
 export function gamesFor(games: GameHistoryItem[], mode: StatsMode): GameHistoryItem[] {
-  return mode === "all" ? games : games.filter((game) => game.solo === (mode === "solo"));
+  if (mode === "all") return games;
+  if (mode === "solo") return games.filter((game) => game.kind === "solo" || game.kind === "daily");
+  return games.filter((game) => game.kind === "multi");
 }
 
 export function wordStatsFor(profile: ProfilePayload, mode: StatsMode): WordStatsPayload {
