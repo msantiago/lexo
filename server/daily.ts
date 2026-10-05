@@ -482,16 +482,18 @@ export function getDailyGame(userId: string, gameId: string): GameHistoryDetail 
 
   const settings = parseSettings(row.settings_json);
   const name = playerName(userId, row.name);
-  const found = parseWords(row.words_json);
-  const words: FoundWord[] = found.map((word) => ({
-    key: word.key,
-    display: word.display,
-    letters: word.letters,
-    points: word.points,
-    shared: false,
-  }));
   const playerId = "daily";
+  /** Grille et mots restent secrets jusqu’au lendemain (Paris), même pour soi. */
   const revealed = day < parisDay();
+  const words: FoundWord[] = revealed
+    ? parseWords(row.words_json).map((word) => ({
+        key: word.key,
+        display: word.display,
+        letters: word.letters,
+        points: word.points,
+        shared: false,
+      }))
+    : [];
   const allWords = revealed ? puzzleWords(row.puzzle_words_json) : [];
   const foundKeys = new Set(words.map((word) => word.key));
   const missed = allWords.filter((word) => !foundKeys.has(word.key));
@@ -532,7 +534,7 @@ export function getDailyGame(userId: string, gameId: string): GameHistoryDetail 
           shared: [],
           rejected: [],
           missed,
-          possibleCount: revealed ? allWords.length : words.length,
+          possibleCount: revealed ? allWords.length : 0,
         },
         players: [{ name, color: DAILY_HISTORY_COLOR, score: row.score, you: true }],
       },
