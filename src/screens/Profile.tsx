@@ -534,6 +534,7 @@ export function GameDetail({
       </p>
       {game.rounds.map((round) => {
         const summary = withEntryOrder(round.summary ?? summaryFromRecap(round.recap), round.recap);
+        const sealed = daily && !round.grid;
         return (
           <section className="panel history-round" key={round.round}>
             <h2>{daily ? "Grille du jour" : `Manche ${round.round}`}</h2>
@@ -555,9 +556,18 @@ export function GameDetail({
               </ul>
             </div>
             <div className="history-words">
-              <h3 className="recap-title">Synthèse de la manche</h3>
-              <WordTables summary={summary} />
-              {round.summary && <PossibleWords summary={round.summary} collapsible />}
+              {sealed ? (
+                <p className="hint">
+                  Grille et mots restent cachés jusqu’à demain, pour ne pas gâcher le Lexo du jour
+                  des autres.
+                </p>
+              ) : (
+                <>
+                  <h3 className="recap-title">Synthèse de la manche</h3>
+                  <WordTables summary={summary} />
+                  {round.summary && <PossibleWords summary={round.summary} collapsible />}
+                </>
+              )}
             </div>
           </section>
         );
