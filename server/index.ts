@@ -28,8 +28,10 @@ import {
   rejoinByUserId,
   rejoinRoom,
   rematch,
+  requestNextRound,
   setBroadcast,
   setLobbyBroadcast,
+  setSocketNotify,
   setPlayerTrace,
   startGame,
   submitWord,
@@ -323,6 +325,10 @@ setBroadcast((room, event, payload) => {
   }
 });
 
+setSocketNotify((socketId, event, payload) => {
+  io.to(socketId).emit(event, payload);
+});
+
 setLobbyBroadcast((publicRooms) => {
   for (const sock of io.sockets.sockets.values()) {
     sock.emit("lobby:rooms", roomsForUser(publicRooms, userIdOf(sock)));
@@ -446,6 +452,11 @@ io.on("connection", async (socket) => {
 
   socket.on("game:start", async () => {
     const result = await startGame(socket.id);
+    if (result && "error" in result) socket.emit("notice", { message: result.error });
+  });
+
+  socket.on("game:ready", () => {
+    const result = requestNextRound(socket.id);
     if (result && "error" in result) socket.emit("notice", { message: result.error });
   });
 
