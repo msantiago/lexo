@@ -49,6 +49,8 @@ type Player = {
   totalScore: number;
   earnedBadges: BadgeDef[];
   lastChatAt: number | null;
+  /** A touché la grille ou tenté un mot pendant la manche en cours. */
+  roundActive: boolean;
 };
 
 type Observer = {
@@ -75,13 +77,19 @@ type Room = {
   solo: boolean;
   phase: Phase;
   round: number;
-  /** Objectif multi atteint ; l'hôte doit relancer une nouvelle partie. */
+  /** Objectif multi atteint ; plus de manche suivante, l'hôte peut relancer. */
   matchOver: boolean;
+  /** Partie stoppée faute d’activité pendant la manche. */
+  endedByInactivity: boolean;
   settings: GameSettings;
   players: Player[];
   grid: Cell[] | null;
   startedAt: number | null;
   endsAt: number | null;
+  /** Lancement auto de la manche suivante (results, hors fin de partie). */
+  nextRoundAt: number | null;
+  /** Joueurs connectés qui ont demandé la manche suivante. */
+  readyIds: Set<string>;
   /** normalized key → player ids who found it this round */
   foundBy: Map<string, Set<string>>;
   rejected: Map<string, RejectedAttempt>;
@@ -105,6 +113,8 @@ export const DISCONNECT_GRACE_MS = 30_000;
  * so a short reconnect on the phone is not stolen by the computer.
  */
 const SEAT_HANDOFF_MS = 8_000;
+/** Pause entre deux manches avant lancement automatique. */
+export const RESULTS_AUTO_NEXT_MS = 60_000;
 const rooms = new Map<string, Room>();
 const socketRoom = new Map<string, string>();
 
@@ -424,8 +434,11 @@ export function viewFor(room: Room, viewerId: string, observing = false): RoomVi
     grid: room.grid,
     startedAt: room.startedAt,
     endsAt: room.endsAt,
+    nextRoundAt: room.phase === "results" && !room.matchOver ? room.nextRoundAt : null,
+    readyIds: room.phase === "results" && !room.matchOver ? [...room.readyIds] : [],
     solo: room.solo,
     matchOver: room.matchOver,
+    endedByInactivity: room.endedByInactivity,
     observing,
     you: {
       id: viewerId,
@@ -449,9 +462,11 @@ export function getRoom(code: string): Room | undefined {
 
 type Broadcast = (room: Room, event: string, payload?: unknown) => void;
 type LobbyBroadcast = (publicRooms: LobbyRoom[], adminRooms: LobbyRoom[]) => void;
+type SocketNotify = (socketId: string, event: string, payload?: unknown) => void;
 
 let broadcast: Broadcast = () => {};
 let lobbyBroadcast: LobbyBroadcast = () => {};
+let notifySocket: SocketNotify = () => {};
 
 export function setBroadcast(fn: Broadcast) {
   broadcast = fn;
@@ -459,6 +474,10 @@ export function setBroadcast(fn: Broadcast) {
 
 export function setLobbyBroadcast(fn: LobbyBroadcast) {
   lobbyBroadcast = fn;
+}
+
+export function setSocketNotify(fn: SocketNotify) {
+  notifySocket = fn;
 }
 
 function toLobbyRoom(room: Room, images: Map<string, string | null>): LobbyRoom {
@@ -564,12 +583,18 @@ function finishRound(room: Room) {
   for (const player of room.players) {
     player.totalScore += player.roundScore;
   }
-  room.matchOver = matchIsOver(
-    room.round,
-    room.players.map((p) => p.totalScore),
-    room.settings,
-    room.solo,
-  );
+  const hadActivity = room.players.some((player) => player.roundActive);
+  room.endedByInactivity = !hadActivity;
+  room.matchOver =
+    !hadActivity ||
+    matchIsOver(
+      room.round,
+      room.players.map((p) => p.totalScore),
+      room.settings,
+      room.solo,
+    );
+  room.readyIds.clear();
+  room.nextRoundAt = room.matchOver ? null : Date.now() + RESULTS_AUTO_NEXT_MS;
   const all =
     room.possibleWords.length > 0
       ? room.possibleWords
@@ -581,6 +606,53 @@ function finishRound(room: Room) {
   persistRound(room);
   announceResultsChat(room);
   emitState(room);
+  reapIdlePlayers(room);
+}
+
+/** En multi, les joueurs sans activité quittent ; salon fermé s’il ne reste personne. */
+function reapIdlePlayers(room: Room) {
+  if (!rooms.has(room.code)) return;
+  if (room.solo || room.players.length <= 1) return;
+  const idle = room.players.filter((player) => !player.roundActive);
+  if (idle.length === 0) return;
+  for (const player of [...idle]) {
+    if (!rooms.has(room.code)) return;
+    ejectIdlePlayer(room, player);
+  }
+}
+
+function ejectIdlePlayer(room: Room, player: Player) {
+  const socketId = player.socketId;
+  const name = player.name;
+  if (player.socketId) socketRoom.delete(player.socketId);
+  room.players = room.players.filter((p) => p.id !== player.id);
+  room.traces.delete(player.id);
+  room.readyIds.delete(player.id);
+  if (room.players.length === 0) {
+    destroyRoom(room);
+    if (socketId) {
+      notifySocket(socketId, "notice", {
+        message: "Tu as été retiré du salon : aucune activité pendant la manche.",
+      });
+    }
+    return;
+  }
+  if (room.hostId === player.id) {
+    room.hostId = room.players[0].id;
+  }
+  pushChat(room, {
+    kind: "system",
+    playerId: null,
+    name: "",
+    color: "#e8b84a",
+    text: `${name} a quitté le salon (inactif).`,
+  });
+  emitState(room);
+  if (socketId) {
+    notifySocket(socketId, "notice", {
+      message: "Tu as été retiré du salon : aucune activité pendant la manche.",
+    });
+  }
 }
 
 function destroyRoom(room: Room) {
@@ -650,6 +722,13 @@ setInterval(() => {
   for (const room of [...rooms.values()]) {
     if (room.phase === "playing" && room.endsAt && now >= room.endsAt) {
       finishRound(room);
+    } else if (
+      room.phase === "results" &&
+      !room.matchOver &&
+      room.nextRoundAt != null &&
+      now >= room.nextRoundAt
+    ) {
+      void advanceFromResults(room);
     }
   }
   reapStalePlayers(now);
@@ -782,6 +861,7 @@ function makePlayer(
     totalScore: 0,
     earnedBadges: [],
     lastChatAt: null,
+    roundActive: false,
   };
 }
 
@@ -818,11 +898,14 @@ export function createRoom(
     phase: "lobby",
     round: 0,
     matchOver: false,
+    endedByInactivity: false,
     settings: clampSettings(loadUserSettings(userId) ?? undefined),
     players: [player],
     grid: null,
     startedAt: null,
     endsAt: null,
+    nextRoundAt: null,
+    readyIds: new Set(),
     foundBy: new Map(),
     rejected: new Map(),
     missed: [],
@@ -980,6 +1063,7 @@ function removePlayer(room: Room, player: Player) {
   if (player.socketId) socketRoom.delete(player.socketId);
   room.players = room.players.filter((p) => p.id !== player.id);
   room.traces.delete(player.id);
+  room.readyIds.delete(player.id);
   if (room.players.length === 0) {
     destroyRoom(room);
     return;
@@ -988,6 +1072,7 @@ function removePlayer(room: Room, player: Player) {
     room.hostId = room.players[0].id;
   }
   emitState(room);
+  void maybeAdvanceAfterReadyChange(room);
 }
 
 function parkPlayer(room: Room, player: Player) {
@@ -999,6 +1084,7 @@ function parkPlayer(room: Room, player: Player) {
     if (nextHost) room.hostId = nextHost.id;
   }
   emitState(room);
+  void maybeAdvanceAfterReadyChange(room);
 }
 
 export function leaveSocket(socketId: string) {
@@ -1068,16 +1154,55 @@ export function updateSettings(socketId: string, settings: Partial<GameSettings>
       room.settings,
       room.solo,
     );
+    if (room.matchOver) {
+      room.nextRoundAt = null;
+      room.readyIds.clear();
+    } else if (room.nextRoundAt == null) {
+      room.nextRoundAt = Date.now() + RESULTS_AUTO_NEXT_MS;
+    }
   }
   emitState(room);
   return { ok: true as const };
 }
 
+function clearIntermission(room: Room) {
+  room.nextRoundAt = null;
+  room.readyIds.clear();
+}
+
+function connectedVoters(room: Room) {
+  return room.players.filter(isConnected);
+}
+
+function everyoneReady(room: Room) {
+  const voters = connectedVoters(room);
+  return voters.length > 0 && voters.every((player) => room.readyIds.has(player.id));
+}
+
+async function advanceFromResults(room: Room) {
+  if (room.phase !== "results" || room.matchOver || rolling.has(room)) return;
+  rolling.add(room);
+  try {
+    await beginRound(room);
+  } finally {
+    rolling.delete(room);
+  }
+}
+
+async function maybeAdvanceAfterReadyChange(room: Room) {
+  if (room.phase !== "results" || room.matchOver) return;
+  if (!everyoneReady(room)) return;
+  await advanceFromResults(room);
+}
+
 async function beginRound(room: Room) {
   clearTimer(room);
+  clearIntermission(room);
   const dealt = await rollPlayableGrid(room.settings);
   room.phase = "playing";
   room.round += 1;
+  room.matchOver = false;
+  room.endedByInactivity = false;
   room.grid = dealt.grid;
   room.possibleWords = dealt.words;
   room.possibleCount = dealt.words.length;
@@ -1092,6 +1217,7 @@ async function beginRound(room: Room) {
     p.words = [];
     p.roundScore = 0;
     p.earnedBadges = [];
+    p.roundActive = false;
   }
   room.timer = setTimeout(
     () => finishRound(room),
@@ -1107,11 +1233,11 @@ export async function startGame(socketId: string) {
   if (!player || player.id !== room.hostId) {
     return { error: "Seul l'hôte peut lancer la manche" as const };
   }
-  if (room.phase === "playing" || rolling.has(room)) {
-    return { error: "La manche est déjà lancée" as const };
+  if (room.phase !== "lobby") {
+    return { error: "La manche se lance depuis le salon" as const };
   }
-  if (room.matchOver) {
-    return { error: "La partie est terminée. Lance une nouvelle partie." as const };
+  if (rolling.has(room)) {
+    return { error: "La manche est déjà lancée" as const };
   }
   if (player.userId) saveUserSettings(player.userId, room.settings);
   rolling.add(room);
@@ -1123,11 +1249,35 @@ export async function startGame(socketId: string) {
   return { ok: true as const };
 }
 
+/** Demande (ou annule) le lancement anticipé de la manche suivante. */
+export function requestNextRound(socketId: string) {
+  const room = getRoomBySocket(socketId);
+  if (!room) return { error: "Pas dans un salon" as const };
+  const player = room.players.find((p) => p.socketId === socketId);
+  if (!player) return { error: "Joueur introuvable" as const };
+  if (room.phase !== "results") {
+    return { error: "Pas encore l’heure de la manche suivante" as const };
+  }
+  if (room.matchOver) {
+    return { error: "La partie est terminée" as const };
+  }
+  if (rolling.has(room)) {
+    return { error: "La manche est déjà en cours de lancement" as const };
+  }
+  if (room.readyIds.has(player.id)) room.readyIds.delete(player.id);
+  else room.readyIds.add(player.id);
+  emitState(room);
+  void maybeAdvanceAfterReadyChange(room);
+  return { ok: true as const };
+}
+
 function resetMatch(room: Room) {
   clearTimer(room);
+  clearIntermission(room);
   room.phase = "lobby";
   room.round = 0;
   room.matchOver = false;
+  room.endedByInactivity = false;
   room.persistedId = null;
   room.grid = null;
   room.startedAt = null;
@@ -1144,6 +1294,7 @@ function resetMatch(room: Room) {
     player.roundScore = 0;
     player.totalScore = 0;
     player.earnedBadges = [];
+    player.roundActive = false;
   }
 }
 
@@ -1233,6 +1384,7 @@ export function setPlayerTrace(socketId: string, cells: unknown) {
   const player = room.players.find((p) => p.socketId === socketId);
   if (!player) return;
   const path = sanitizeTrace(cells);
+  if (path.length > 0) player.roundActive = true;
   room.traces.set(player.id, path);
   broadcast(room, "player:trace", { playerId: player.id, cells: path });
 }
@@ -1254,6 +1406,8 @@ export function submitWord(socketId: string, cells: number[]): WordSubmitResult 
   if (!Array.isArray(cells) || !isValidPath(cells)) {
     return { ok: false, reason: "path" };
   }
+
+  player.roundActive = true;
 
   const built = pathToWord(room.grid, cells);
   if (built.letters < room.settings.minLetters) {

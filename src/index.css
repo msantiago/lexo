@@ -4090,6 +4090,40 @@ button.badge-card:focus-visible {
   flex: 1 1 180px;
 }
 
+.next-round-timer {
+  margin: 0;
+  width: 100%;
+  font-size: 15px;
+  color: var(--cream);
+}
+
+.next-round-timer b {
+  font-family: var(--font-dice);
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+}
+
+.ready-count {
+  width: 100%;
+  margin: 0;
+}
+
+.podium-title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold-soft);
+}
+
+.screen.results.match-over .podium {
+  margin-top: 8px;
+}
+
+.screen.results.match-over .podium-item:first-child {
+  box-shadow: inset 0 0 0 1px rgba(232, 184, 74, 0.35);
+}
+
 @media (max-width: 879px) {
   .results-board-row {
     justify-content: center;

@@ -113,6 +113,10 @@ export default function App() {
         goHome(message);
         return;
       }
+      if (message.startsWith("Tu as été retiré du salon")) {
+        goHome(message);
+        return;
+      }
       if (pendingInvite.current && message === "Salon introuvable") {
         pendingInvite.current = null;
         showToast("Ce lien d’invitation n’est plus valable : le salon a été fermé.", 4000);
@@ -271,7 +275,7 @@ export default function App() {
           room={room}
           isHost={isHost}
           admin={admin}
-          onNext={() => socket.emit("game:start")}
+          onReady={() => socket.emit("game:ready")}
           onRematch={() => socket.emit("game:rematch")}
           onLeave={leave}
         />

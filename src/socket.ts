@@ -24,6 +24,7 @@ export type ClientToServer = {
   "room:settings": (settings: Partial<GameSettings>) => void;
   "room:leave": () => void;
   "game:start": () => void;
+  "game:ready": () => void;
   "game:rematch": () => void;
   "game:word": (data: { cells: number[] }) => void;
   "game:trace": (data: { cells: number[] }) => void;

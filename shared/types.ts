@@ -215,9 +215,18 @@ export type RoomView = {
   grid: Cell[] | null;
   startedAt: number | null;
   endsAt: number | null;
+  /**
+   * Horodatage de lancement auto de la manche suivante (phase results, objectif non atteint).
+   * Null si la partie est terminée ou hors interlude.
+   */
+  nextRoundAt: number | null;
+  /** Joueurs qui ont demandé la manche suivante (ids). */
+  readyIds: string[];
   solo: boolean;
   /** Objectif multi atteint : plus de manche suivante, l'hôte peut relancer. */
   matchOver: boolean;
+  /** Partie stoppée faute d’activité pendant la manche. */
+  endedByInactivity: boolean;
   observing: boolean;
   you: {
     id: string;
