@@ -9,7 +9,10 @@
     "dev:client": "vite",
     "build": "vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
-    "build:dict": "node scripts/build-dict.mjs"
+    "build:dict": "node scripts/build-dict.mjs",
+    "mobile": "npm --prefix mobile start",
+    "mobile:web": "npm --prefix mobile run web",
+    "mobile:typecheck": "npm --prefix mobile run typecheck"
   },
   "dependencies": {
     "better-auth": "^1.7.2",

@@ -6,6 +6,18 @@ Le dictionnaire vient du lexique Grammalecte / Dicollecte 7.7 (variante Classiqu
 
 En production : `npm run build` puis `npm start`. Le serveur sert le front et les WebSockets sur le même port (`PORT`, défaut 3001).
 
+## Mobile (Expo)
+
+Client natif iOS / Android dans `mobile/` (Expo + React Native), partageant `shared/`.
+
+```bash
+npm run mobile          # Expo Dev Tools
+npm run mobile:web      # smoke test navigateur
+npm run mobile:typecheck
+```
+
+Détails : `mobile/README.md`.
+
 ## Authentification
 
 Un compte est obligatoire pour créer un salon, lancer une partie solo ou rejoindre une partie.
