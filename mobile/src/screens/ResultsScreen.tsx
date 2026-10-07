@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { matchHeadline, roundHeadline } from "@shared/round";
 import type { RoomView } from "@shared/types";
+import RoundChat from "../components/RoundChat";
+import WordTables from "../components/WordTables";
 import { formatTime } from "../lib/format";
 import { getSocket } from "../socket";
 import { colors } from "../theme";
@@ -27,6 +29,7 @@ export default function ResultsScreen({ room, isHost, onLeave }: Props) {
   const readyCount = connected.filter((p) => readyIds.has(p.id)).length;
   const remainingMs =
     !matchOver && room.nextRoundAt != null ? Math.max(0, room.nextRoundAt - now) : 0;
+  const badges = room.you.earnedBadges ?? [];
 
   useEffect(() => {
     if (matchOver || room.nextRoundAt == null) return;
@@ -55,8 +58,16 @@ export default function ResultsScreen({ room, isHost, onLeave }: Props) {
   const onReady = () => getSocket().emit("game:ready");
   const onRematch = () => getSocket().emit("game:rematch");
 
+  const shareInvite = async () => {
+    try {
+      await Share.share({ message: `Rejoins mon salon Lexo : ${room.code}` });
+    } catch {
+      /* cancelled */
+    }
+  };
+
   return (
-    <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+    <View style={styles.scroll}>
       <Text style={styles.label}>{matchOver ? "Partie terminée" : "Temps écoulé"}</Text>
       <Text style={styles.title}>{title}</Text>
       {you ? (
@@ -73,6 +84,12 @@ export default function ResultsScreen({ room, isHost, onLeave }: Props) {
             </>
           )}
         </Text>
+      ) : null}
+
+      {!room.solo && room.settings.allowJoinMidGame ? (
+        <Pressable style={[styles.btn, styles.btnIvory]} onPress={() => void shareInvite()}>
+          <Text style={styles.btnIvoryText}>Inviter · {room.code}</Text>
+        </Pressable>
       ) : null}
 
       <View style={styles.actions}>
@@ -122,6 +139,18 @@ export default function ResultsScreen({ room, isHost, onLeave }: Props) {
         </Pressable>
       </View>
 
+      {badges.length > 0 ? (
+        <View style={styles.panel}>
+          <Text style={styles.panelTitle}>Badges gagnés</Text>
+          {badges.map((badge) => (
+            <Text key={badge.id} style={styles.badge}>
+              {badge.title}
+              {badge.description ? ` — ${badge.description}` : ""}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+
       <View style={styles.panel}>
         <Text style={styles.panelTitle}>{matchOver ? "Palmarès" : "Classement"}</Text>
         {ranked.map((p, i) => (
@@ -145,7 +174,9 @@ export default function ResultsScreen({ room, isHost, onLeave }: Props) {
         ))}
       </View>
 
-      {room.you.words.length > 0 ? (
+      {room.summary ? (
+        <WordTables summary={room.summary} youId={room.you.id} observing={room.observing} />
+      ) : room.you.words.length > 0 ? (
         <View style={styles.panel}>
           <Text style={styles.panelTitle}>Tes mots</Text>
           <Text style={styles.words}>
@@ -155,7 +186,9 @@ export default function ResultsScreen({ room, isHost, onLeave }: Props) {
           </Text>
         </View>
       ) : null}
-    </ScrollView>
+
+      {!room.solo ? <RoundChat chat={room.chat} disabled={room.observing} /> : null}
+    </View>
   );
 }
 
@@ -185,9 +218,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   btnGold: { backgroundColor: colors.gold },
+  btnIvory: { backgroundColor: colors.ivory },
   btnGhost: { borderWidth: 1, borderColor: colors.line },
   disabled: { opacity: 0.55 },
   btnGoldText: { color: colors.ink, fontWeight: "700", fontSize: 16 },
+  btnIvoryText: { color: colors.ink, fontWeight: "700", fontSize: 16 },
   btnGhostText: { color: colors.cream, fontWeight: "600", fontSize: 16 },
   panel: {
     backgroundColor: colors.surface,
@@ -204,6 +239,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     color: colors.goldSoft,
   },
+  badge: { color: colors.cream, fontSize: 14, lineHeight: 20 },
   row: {
     flexDirection: "row",
     alignItems: "center",
