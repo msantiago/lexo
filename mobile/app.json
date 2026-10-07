@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Lexo",
+    "slug": "lexo",
+    "scheme": "lexo",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#082421"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.lexo.mobile"
+    },
+    "android": {
+      "package": "app.lexo.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#082421",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "backgroundColor": "#082421"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-web-browser"
+    ]
+  }
+}
