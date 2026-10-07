@@ -2,6 +2,7 @@
   "expo": {
     "name": "Lexo",
     "slug": "lexo",
+    "scheme": "lexo",
     "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -28,6 +29,10 @@
     "web": {
       "favicon": "./assets/favicon.png",
       "backgroundColor": "#082421"
-    }
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-web-browser"
+    ]
   }
 }

@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { betterAuth } from "better-auth";
 import type { BetterAuthOptions } from "better-auth";
+import { expo } from "@better-auth/expo";
 import { getMigrations } from "better-auth/db/migration";
 import { fromNodeHeaders } from "better-auth/node";
 import Database from "better-sqlite3";
@@ -207,10 +208,13 @@ if (!secret || secret.length < 32) {
   );
 }
 
+const isDev = process.env.NODE_ENV !== "production";
+
 export const auth = betterAuth({
   secret,
   baseURL: process.env.BETTER_AUTH_URL || "http://localhost:5173",
   database: authDb,
+  plugins: [expo()],
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,
@@ -235,7 +239,19 @@ export const auth = betterAuth({
     "http://127.0.0.1:5173",
     "http://localhost:3001",
     "http://127.0.0.1:3001",
+    "http://localhost:8081",
+    "http://127.0.0.1:8081",
+    "lexo://",
+    "lexo://*",
     "https://appleid.apple.com",
+    ...(isDev
+      ? [
+          "exp://",
+          "exp://**",
+          "exp://192.168.*.*:*/**",
+          "exp://10.*.*.*:*/**",
+        ]
+      : []),
     ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : []),
     ...extraOrigins,
   ],

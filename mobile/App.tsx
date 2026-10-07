@@ -1,72 +1,133 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, View } from "react-native";
-import { DEFAULT_SETTINGS } from "@shared/types";
-import { summarizeRules } from "@shared/rules";
-import { apiBaseUrl, getSocket, type ConnectionState } from "./src/socket";
+import type { RoomView } from "@shared/types";
+import AuthScreen from "./src/screens/AuthScreen";
+import HomeScreen from "./src/screens/HomeScreen";
+import LobbyScreen from "./src/screens/LobbyScreen";
+import { authClient } from "./src/auth-client";
+import { connectSocket, getSocket, type ConnectionState } from "./src/socket";
 import { colors } from "./src/theme";
 
+type Screen = "home" | "auth";
+
 export default function App() {
+  const [screen, setScreen] = useState<Screen>("home");
   const [connection, setConnection] = useState<ConnectionState>("connecting");
-  const rules = summarizeRules(DEFAULT_SETTINGS, false);
+  const [room, setRoom] = useState<RoomView | null>(null);
+  const [playerId, setPlayerId] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wasSignedIn = useRef(false);
+  const { data: session } = authClient.useSession();
+
+  const showToast = (message: string, ms = 2800) => {
+    setToast(message);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), ms);
+  };
+
+  const clearRoom = () => {
+    setRoom(null);
+    setPlayerId(null);
+  };
+
+  const leaveRoom = () => {
+    getSocket().emit("room:leave");
+    clearRoom();
+    setScreen("home");
+  };
 
   useEffect(() => {
-    const socket = getSocket();
-    const onConnect = () => setConnection("connected");
-    const onDisconnect = () => setConnection("disconnected");
+    let cancelled = false;
+    void connectSocket().then((socket) => {
+      if (cancelled) return;
 
-    if (socket.connected) setConnection("connected");
-    socket.on("connect", onConnect);
-    socket.on("disconnect", onDisconnect);
+      const onConnect = () => setConnection("connected");
+      const onDisconnect = () => setConnection("disconnected");
+      const onRoom = (next: RoomView) => setRoom(next);
+      const onSession = (data: { playerId: string }) => setPlayerId(data.playerId);
+      const onClosed = () => {
+        clearRoom();
+        showToast("Salon fermé");
+      };
+      const onReplaced = () => {
+        clearRoom();
+        showToast("Session reprise sur un autre appareil");
+      };
+      const onNotice = (data: { message: string }) => showToast(data.message);
+
+      if (socket.connected) setConnection("connected");
+      socket.on("connect", onConnect);
+      socket.on("disconnect", onDisconnect);
+      socket.on("room:state", onRoom);
+      socket.on("session", onSession);
+      socket.on("room:closed", onClosed);
+      socket.on("session:replaced", onReplaced);
+      socket.on("notice", onNotice);
+    });
+
     return () => {
-      socket.off("connect", onConnect);
-      socket.off("disconnect", onDisconnect);
+      cancelled = true;
+      const socket = getSocket();
+      socket.off("connect");
+      socket.off("disconnect");
+      socket.off("room:state");
+      socket.off("session");
+      socket.off("room:closed");
+      socket.off("session:replaced");
+      socket.off("notice");
+      if (toastTimer.current) clearTimeout(toastTimer.current);
     };
   }, []);
 
-  const statusLabel =
-    connection === "connected"
-      ? "Connecté au serveur Lexo"
-      : connection === "connecting"
-        ? "Connexion au serveur…"
-        : "Serveur injoignable";
+  useEffect(() => {
+    if (session?.user) {
+      wasSignedIn.current = true;
+      return;
+    }
+    if (!wasSignedIn.current) return;
+    wasSignedIn.current = false;
+    getSocket().emit("room:leave");
+    clearRoom();
+    setScreen("home");
+  }, [session?.user]);
+
+  const inLobby = room?.phase === "lobby";
+  const inGame = Boolean(room && room.phase !== "lobby");
 
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" />
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.hero}>
-          <Text style={styles.brand} accessibilityRole="header">
-            L E X O
-          </Text>
-          <Text style={styles.tagline}>Jeu de lettres en temps réel — édition mobile</Text>
-        </View>
-
-        <View style={styles.panel}>
-          <Text style={styles.panelTitle}>Règles par défaut</Text>
-          <Text style={styles.panelBody}>{rules}</Text>
-        </View>
-
-        <View style={styles.panel}>
-          <Text style={styles.panelTitle}>Backend</Text>
-          <View style={styles.row}>
-            <View
-              style={[
-                styles.dot,
-                connection === "connected"
-                  ? styles.dotOk
-                  : connection === "connecting"
-                    ? styles.dotPending
-                    : styles.dotBad,
-              ]}
-            />
-            <Text style={styles.panelBody}>{statusLabel}</Text>
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        {inLobby && room ? (
+          <LobbyScreen room={room} playerId={playerId} onLeave={leaveRoom} />
+        ) : inGame && room ? (
+          <View style={styles.wrap}>
+            <Text style={styles.brand}>L E X O</Text>
+            <Text style={styles.title}>Partie en cours</Text>
+            <Text style={styles.body}>
+              Salon {room.code} — phase « {room.phase} ». L’écran Play tactile arrive dans la
+              prochaine itération MVP.
+            </Text>
+            <Text style={styles.link} onPress={leaveRoom}>
+              Quitter la partie
+            </Text>
           </View>
-          <Text style={styles.mono}>{apiBaseUrl()}</Text>
-          <Text style={styles.hint}>
-            Lance le serveur Lexo (`npm run dev:server`) puis définis `EXPO_PUBLIC_API_URL` si
-            besoin.
-          </Text>
-        </View>
+        ) : screen === "auth" ? (
+          <View style={styles.wrap}>
+            <Text style={styles.brand}>L E X O</Text>
+            <AuthScreen onDone={() => setScreen("home")} />
+            <Text style={styles.link} onPress={() => setScreen("home")}>
+              Retour
+            </Text>
+          </View>
+        ) : (
+          <HomeScreen
+            connection={connection}
+            onNeedAuth={() => setScreen("auth")}
+            toast={toast}
+          />
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -79,67 +140,30 @@ const styles = StyleSheet.create({
   },
   scroll: {
     paddingHorizontal: 24,
-    paddingTop: 32,
+    paddingTop: 28,
     paddingBottom: 48,
-    gap: 20,
   },
-  hero: {
-    gap: 10,
-    paddingVertical: 24,
-  },
+  wrap: { gap: 14 },
   brand: {
-    fontSize: 48,
+    fontSize: 28,
     fontWeight: "800",
-    letterSpacing: 8,
+    letterSpacing: 6,
     color: colors.gold,
+    marginBottom: 4,
   },
-  tagline: {
-    fontSize: 17,
-    lineHeight: 24,
-    color: colors.textSoft,
-    maxWidth: 340,
-  },
-  panel: {
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 18,
-    gap: 10,
-  },
-  panelTitle: {
-    fontSize: 13,
+  title: {
+    fontSize: 24,
     fontWeight: "700",
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-    color: colors.goldSoft,
-  },
-  panelBody: {
-    fontSize: 16,
-    lineHeight: 24,
     color: colors.cream,
   },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+  body: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: colors.textSoft,
   },
-  dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  dotOk: { backgroundColor: "#6fdb9a" },
-  dotPending: { backgroundColor: colors.gold },
-  dotBad: { backgroundColor: colors.coral },
-  mono: {
-    fontSize: 13,
-    color: colors.textMuted,
-    fontFamily: "monospace",
-  },
-  hint: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textMuted,
+  link: {
+    color: colors.goldSoft,
+    fontSize: 15,
+    marginTop: 8,
   },
 });
