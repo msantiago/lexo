@@ -4,6 +4,8 @@ import type { RoomView } from "@shared/types";
 import AuthScreen from "./src/screens/AuthScreen";
 import HomeScreen from "./src/screens/HomeScreen";
 import LobbyScreen from "./src/screens/LobbyScreen";
+import PlayScreen from "./src/screens/PlayScreen";
+import ResultsScreen from "./src/screens/ResultsScreen";
 import { authClient } from "./src/auth-client";
 import { connectSocket, getSocket, type ConnectionState } from "./src/socket";
 import { colors } from "./src/theme";
@@ -92,42 +94,48 @@ export default function App() {
     setScreen("home");
   }, [session?.user]);
 
-  const inLobby = room?.phase === "lobby";
-  const inGame = Boolean(room && room.phase !== "lobby");
+  const isHost = Boolean(room && playerId && room.hostId === playerId);
+  const playing = room?.phase === "playing";
+  const results = room?.phase === "results";
+  const lobby = room?.phase === "lobby";
+
+  const body = playing && room ? (
+    <PlayScreen room={room} onLeave={leaveRoom} />
+  ) : results && room ? (
+    <ResultsScreen room={room} isHost={isHost} onLeave={leaveRoom} />
+  ) : lobby && room ? (
+    <LobbyScreen room={room} playerId={playerId} onLeave={leaveRoom} />
+  ) : screen === "auth" ? (
+    <View style={styles.wrap}>
+      <Text style={styles.brand}>L E X O</Text>
+      <AuthScreen onDone={() => setScreen("home")} />
+      <Text style={styles.link} onPress={() => setScreen("home")}>
+        Retour
+      </Text>
+    </View>
+  ) : (
+    <HomeScreen
+      connection={connection}
+      onNeedAuth={() => setScreen("auth")}
+      toast={toast}
+    />
+  );
+
+  // Play needs a non-scrolling container so the board can capture gestures.
+  if (playing) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <StatusBar barStyle="light-content" />
+        <View style={styles.playPad}>{body}</View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        {inLobby && room ? (
-          <LobbyScreen room={room} playerId={playerId} onLeave={leaveRoom} />
-        ) : inGame && room ? (
-          <View style={styles.wrap}>
-            <Text style={styles.brand}>L E X O</Text>
-            <Text style={styles.title}>Partie en cours</Text>
-            <Text style={styles.body}>
-              Salon {room.code} — phase « {room.phase} ». L’écran Play tactile arrive dans la
-              prochaine itération MVP.
-            </Text>
-            <Text style={styles.link} onPress={leaveRoom}>
-              Quitter la partie
-            </Text>
-          </View>
-        ) : screen === "auth" ? (
-          <View style={styles.wrap}>
-            <Text style={styles.brand}>L E X O</Text>
-            <AuthScreen onDone={() => setScreen("home")} />
-            <Text style={styles.link} onPress={() => setScreen("home")}>
-              Retour
-            </Text>
-          </View>
-        ) : (
-          <HomeScreen
-            connection={connection}
-            onNeedAuth={() => setScreen("auth")}
-            toast={toast}
-          />
-        )}
+        {body}
       </ScrollView>
     </SafeAreaView>
   );
@@ -142,6 +150,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 28,
     paddingBottom: 48,
+    flexGrow: 1,
+  },
+  playPad: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 16,
   },
   wrap: { gap: 14 },
   brand: {
@@ -150,16 +165,6 @@ const styles = StyleSheet.create({
     letterSpacing: 6,
     color: colors.gold,
     marginBottom: 4,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: colors.cream,
-  },
-  body: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: colors.textSoft,
   },
   link: {
     color: colors.goldSoft,

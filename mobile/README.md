@@ -23,7 +23,8 @@ Sur un téléphone physique, mets l’IP de ta machine dans `EXPO_PUBLIC_API_URL
 - Auth e-mail / mot de passe (Better Auth + SecureStore via `@better-auth/expo`)
 - Accueil : solo, créer un salon, rejoindre (code ou liste)
 - Salon lobby : joueurs, règles, démarrer (hôte) / quitter
-- Placeholders pour la phase Play (prochaine itération)
+- Play : grille tactile, timer, countdown, soumission de mots (`game:word`)
+- Résultats basiques : classement, prêt / manche suivante / nouvelle partie
 
 ## Scripts
 
