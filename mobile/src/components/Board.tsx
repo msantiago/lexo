@@ -154,7 +154,7 @@ export default function Board({
       onResponderRelease={() => finish(true)}
       onResponderTerminate={() => finish(false)}
     >
-      <View style={[styles.board, flash === "fail" && styles.reject]}>
+      <View style={[styles.board, flash === "fail" && styles.reject]} pointerEvents="none">
         {size > 0 &&
           grid.map((die, i) => {
             const center = dieCenter(i, size);
