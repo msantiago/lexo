@@ -77,9 +77,15 @@ export default function PlayScreen({ room, onLeave }: Props) {
       }
       showReject(FAIL_MESSAGES[result.reason]);
     };
+    const onShared = () => {
+      setFeedback({ text: "Quelqu’un a trouvé le même mot", ok: false });
+      flashBriefly("fail");
+    };
     socket.on("word:result", onResult);
+    socket.on("word:shared", onShared);
     return () => {
       socket.off("word:result", onResult);
+      socket.off("word:shared", onShared);
     };
   }, []);
 
@@ -188,16 +194,17 @@ export default function PlayScreen({ room, onLeave }: Props) {
         </Text>
       </View>
 
-      {!observing && room.players.length > 1 ? (
+      {room.players.length > 1 ? (
         <View style={styles.others}>
-          {room.players
-            .filter((p) => p.id !== room.you.id)
-            .map((p) => (
-              <Text key={p.id} style={styles.otherLine}>
-                <Text style={{ color: p.color }}>● </Text>
-                {p.name} · {p.wordCount} mot{p.wordCount > 1 ? "s" : ""}
-              </Text>
-            ))}
+          {room.players.map((p) => (
+            <Text key={p.id} style={styles.otherLine}>
+              <Text style={{ color: p.color }}>● </Text>
+              {p.name}
+              {p.id === room.you.id ? " (toi)" : ""}
+              {" · "}
+              {p.roundScore} pts · {p.wordCount} mot{p.wordCount > 1 ? "s" : ""}
+            </Text>
+          ))}
         </View>
       ) : null}
     </View>

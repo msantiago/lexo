@@ -33,6 +33,12 @@
     "plugins": [
       "expo-secure-store",
       "expo-web-browser"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "43447c67-1f11-4ed9-9f1e-8f24c9add59c"
+      }
+    },
+    "owner": "masantiago-team"
   }
 }
