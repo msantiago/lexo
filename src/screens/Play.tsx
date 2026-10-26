@@ -9,7 +9,7 @@ import { countdownIndex, countdownRevealing, countdownShuffling } from "@shared/
 import type { RoomView, WordSubmitResult } from "@shared/types";
 import Board from "../components/Board";
 import CountdownGate from "../components/CountdownGate";
-import Scoreboard, { ScorePills } from "../components/Scoreboard";
+import RoundStandings from "../components/RoundStandings";
 import Timer from "../components/Timer";
 import WordList from "../components/WordList";
 import ScoreBursts, { createScoreBurst, type ScoreBurstItem } from "../components/ScoreBurst";
@@ -312,23 +312,6 @@ export default function Play({ room, onLeave }: Props) {
         </div>
       </div>
 
-      <ScorePills
-        players={room.players}
-        youId={observing ? "" : room.you.id}
-        showOtherScores={observing || showOtherScores}
-        onToggleOtherScores={
-          !observing && room.players.length > 1 ? toggleOtherScores : undefined
-        }
-      />
-      <Scoreboard
-        players={room.players}
-        youId={observing ? "" : room.you.id}
-        showOtherScores={observing || showOtherScores}
-        onToggleOtherScores={
-          !observing && room.players.length > 1 ? toggleOtherScores : undefined
-        }
-      />
-
       <div className="stage">
         {observing && room.players.length > 0 && (
           <div className="observe-players" role="tablist" aria-label="Joueur observé">
@@ -371,6 +354,14 @@ export default function Play({ room, onLeave }: Props) {
         {room.grid && (
           <div className="board-stack">
             <Timer remainingMs={remaining} totalMs={room.settings.durationSec * 1000} />
+            <RoundStandings
+              players={room.players}
+              youId={observing ? (watched?.id ?? "") : room.you.id}
+              showOtherScores={observing || showOtherScores}
+              onToggleOtherScores={
+                !observing && room.players.length > 1 ? toggleOtherScores : undefined
+              }
+            />
             <div className="board-burst-host">
               <CountdownGate startedAt={room.startedAt} now={now}>
                 <Board

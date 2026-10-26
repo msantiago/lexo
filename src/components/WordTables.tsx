@@ -375,7 +375,14 @@ export function PossibleWords({
   const foundCount = summary.unique.length + summary.shared.length;
   const missed = summary.missed ?? [];
   const possibleCount = summary.possibleCount ?? 0;
-  const summaryText = `${foundCount} mot${foundCount > 1 ? "s" : ""} trouvé${foundCount > 1 ? "s" : ""} sur ${possibleCount} possible${possibleCount > 1 ? "s" : ""} dans la grille${missed.length > 0 ? ` · ${missed.length} oublié${missed.length > 1 ? "s" : ""}` : ""}`;
+  const maxPoints = words.reduce((sum, word) => sum + wordPoints(word.letters, false), 0);
+  const summaryText = [
+    `${foundCount} mot${foundCount > 1 ? "s" : ""} trouvé${foundCount > 1 ? "s" : ""} sur ${possibleCount} possible${possibleCount > 1 ? "s" : ""} dans la grille`,
+    maxPoints > 0 ? `${maxPoints} pt${maxPoints > 1 ? "s" : ""} max` : "",
+    missed.length > 0 ? `${missed.length} oublié${missed.length > 1 ? "s" : ""}` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   const details = (
     <>

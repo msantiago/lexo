@@ -1,3 +1,5 @@
+import { soundEnabled, subscribeSound } from "./sound-pref";
+
 let audioCtx: AudioContext | null = null;
 let master: GainNode | null = null;
 let htmlReady = false;
@@ -164,6 +166,7 @@ function makeHtml(src: string) {
 }
 
 function ensureElements() {
+  if (!audible()) return;
   if (!html.score) html.score = makeHtml(WAV.score);
   if (!html.scoreBig) html.scoreBig = makeHtml(WAV.scoreBig);
   if (!html.scoreEpic) html.scoreEpic = makeHtml(WAV.scoreEpic);
@@ -186,7 +189,7 @@ function whenCanPlay(el: HTMLAudioElement): Promise<void> {
       done();
       return;
     }
-    if (el.readyState !== HTMLMediaElement.HAVE_NOTHING) return;
+    if (!audible() || el.readyState !== HTMLMediaElement.HAVE_NOTHING) return;
     try {
       el.load();
     } catch {
@@ -197,11 +200,60 @@ function whenCanPlay(el: HTMLAudioElement): Promise<void> {
 
 let soundsReady = false;
 let soundsLoading: Promise<void> | null = null;
+let soundGeneration = 0;
+
+function audible(): boolean {
+  return soundEnabled();
+}
+
+/** Laisse la musique d’une autre app continuer (iOS / Safari). */
+function yieldAudioSession() {
+  const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+  if (!session) return;
+  try {
+    session.type = "ambient";
+  } catch {
+    /* ignore */
+  }
+}
+
+function releaseElement(el: HTMLAudioElement) {
+  try {
+    el.pause();
+    el.muted = true;
+    el.removeAttribute("src");
+  } catch {
+    /* ignore */
+  }
+}
+
+function releaseAudio() {
+  soundGeneration += 1;
+  for (const el of [html.score, html.scoreBig, html.scoreEpic, html.fail, html.stolen, ...(countAudio ?? [])]) {
+    if (el) releaseElement(el);
+  }
+  html.score = undefined;
+  html.scoreBig = undefined;
+  html.scoreEpic = undefined;
+  html.fail = undefined;
+  html.stolen = undefined;
+  countAudio = null;
+  htmlReady = false;
+  soundsReady = false;
+  soundsLoading = null;
+  const ctx = audioCtx;
+  audioCtx = null;
+  master = null;
+  if (ctx) void ctx.close().catch(() => {});
+  yieldAudioSession();
+}
 
 function loadSounds(): Promise<void> {
+  if (!audible()) return Promise.resolve();
   if (soundsReady) return Promise.resolve();
   if (!soundsLoading) {
     ensureElements();
+    const generation = soundGeneration;
     const els = [html.score, html.scoreBig, html.scoreEpic, html.fail, html.stolen, ...(countAudio ?? [])].filter(
       (el): el is HTMLAudioElement => !!el,
     );
@@ -209,6 +261,7 @@ function loadSounds(): Promise<void> {
       Promise.all(els.map(whenCanPlay)),
       new Promise<void>((resolve) => window.setTimeout(resolve, 1000)),
     ]).then(() => {
+      if (generation !== soundGeneration || !audible()) return;
       soundsReady = true;
       soundsLoading = null;
     });
@@ -217,6 +270,7 @@ function loadSounds(): Promise<void> {
 }
 
 function warmHtml() {
+  if (!audible()) return;
   ensureElements();
   if (htmlReady) return;
   const silent = makeHtml(WAV.silent);
@@ -226,6 +280,10 @@ function warmHtml() {
     void play
       .then(() => {
         silent.pause();
+        if (!audible()) {
+          releaseElement(silent);
+          return;
+        }
         htmlReady = true;
       })
       .catch(() => {
@@ -238,6 +296,7 @@ function warmHtml() {
 
 /** Décode les sons avant le compte à rebours, pour qu’ils partent avec le chiffre. */
 export function primeSounds(): Promise<void> {
+  if (!audible()) return Promise.resolve();
   unlockAudio();
   return loadSounds();
 }
@@ -298,6 +357,7 @@ export function hapticFail() {
 }
 
 export function playScoreSound(letters: number) {
+  if (!audible()) return;
   const name = letters >= 7 ? "scoreEpic" : letters >= 6 ? "scoreBig" : "score";
   if (html[name]) {
     playHtml(name);
@@ -317,6 +377,7 @@ export function playScoreSound(letters: number) {
 }
 
 export function playFailSound() {
+  if (!audible()) return;
   if (html.fail) {
     playHtml("fail");
     return;
@@ -325,6 +386,7 @@ export function playFailSound() {
 }
 
 export function playStolenSound() {
+  if (!audible()) return;
   if (html.stolen) {
     playHtml("stolen");
     return;
@@ -333,22 +395,28 @@ export function playStolenSound() {
 }
 
 export function playCountdownSound(step: number) {
+  if (!audible()) {
+    haptic(step >= COUNT_WAV.length - 1 ? [12, 28, 16] : 8);
+    return;
+  }
   ensureElements();
   const clips = countAudio ?? [];
   const el = clips[Math.min(Math.max(step, 0), clips.length - 1)];
-  if (!el) return;
-  try {
-    if (el.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) el.currentTime = 0;
-    const play = el.play();
-    if (play) void play.catch(() => {});
-  } catch {
-    /* ignore */
+  if (el) {
+    try {
+      if (el.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) el.currentTime = 0;
+      const play = el.play();
+      if (play) void play.catch(() => {});
+    } catch {
+      /* ignore */
+    }
   }
   haptic(step >= clips.length - 1 ? [12, 28, 16] : 8);
 }
 
 export function playLetterSelect(step: number) {
   haptic(8 + Math.min(Math.max(step, 1), 8));
+  if (!audible()) return;
   const n = Math.max(1, step);
   playOsc(640 * Math.pow(1.05, Math.min(n - 1, 10)), 0.038, 0.12, "triangle");
 }
@@ -358,6 +426,7 @@ export function playLetterBack() {
 }
 
 export function unlockAudio() {
+  if (!audible()) return;
   try {
     warmHtml();
     void loadSounds();
@@ -369,7 +438,14 @@ export function unlockAudio() {
   }
 }
 
-if (typeof window !== "undefined") void loadSounds();
+if (typeof window !== "undefined") {
+  if (audible()) void loadSounds();
+  else yieldAudioSession();
+  subscribeSound((on) => {
+    if (on) void loadSounds();
+    else releaseAudio();
+  });
+}
 
 export function installAudioUnlock() {
   const onClick = () => unlockAudio();

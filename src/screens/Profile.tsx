@@ -6,17 +6,17 @@ import type {
   WordFreq,
   WordStatsPayload,
 } from "@shared/account";
-import type { RoundSummary, SharedWord, SummaryWord, WordRecap } from "@shared/types";
+import type { Cell, FoundWord, HistoryRound } from "@shared/types";
 import { BADGE_CATEGORY_LABELS, type BadgeCategory, type BadgeView } from "@shared/badges";
 import { parseDailyGameId } from "@shared/daily";
 import { letterNeedsBaseMark } from "@shared/dice";
 import { difficultyLabel } from "@shared/rules";
-import type { Cell } from "@shared/types";
 import Avatar from "../components/Avatar";
+import PlayerScore from "../components/PlayerScore";
 import { BadgeButton } from "../components/BadgeDialog";
 import ProfileStats, { gamesFor, wordStatsFor, type StatsMode } from "../components/ProfileStats";
 import type { Crumb } from "../components/Breadcrumb";
-import WordTables, { PossibleWords } from "../components/WordTables";
+import { PossibleWords } from "../components/WordTables";
 import WordLink from "../components/WordLink";
 import { authClient, displayNameFromUser } from "../lib/auth-client";
 import Preferences from "./Preferences";
@@ -532,118 +532,117 @@ export function GameDetail({
               game.rounds.length > 1 ? "s" : ""
             }`}
       </p>
-      {game.rounds.map((round) => {
-        const summary = withEntryOrder(round.summary ?? summaryFromRecap(round.recap), round.recap);
-        const sealed = daily && !round.grid;
-        return (
-          <section className="panel history-round" key={round.round}>
-            <h2>{daily ? "Grille du jour" : `Manche ${round.round}`}</h2>
-            <div className="history-round-body">
-              {round.grid && <MiniGrid grid={round.grid} />}
-              <ul className="lobby-room-players scored">
-                {round.players.map((p) => (
-                  <li className="lobby-room-player" key={`${round.round}-${p.name}-${p.color}`}>
-                    <span className="avatar" style={{ background: p.color }}>
-                      {p.name.slice(0, 1).toUpperCase()}
-                    </span>
-                    <strong>
-                      {p.name}
-                      {p.you && voice === "self" ? " (toi)" : ""}
-                    </strong>
-                    <span className="lobby-room-score">{p.score} pts</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="history-words">
-              {sealed ? (
-                <p className="hint">
-                  Grille et mots restent cachés jusqu’à demain, pour ne pas gâcher le Lexo du jour
-                  des autres.
-                </p>
-              ) : (
-                <>
-                  <h3 className="recap-title">Synthèse de la manche</h3>
-                  <WordTables summary={summary} />
-                  {round.summary && <PossibleWords summary={round.summary} collapsible />}
-                </>
-              )}
-            </div>
-          </section>
-        );
-      })}
+      {game.rounds.map((round) => (
+        <HistoryRoundPanel
+          key={round.round}
+          round={round}
+          daily={daily}
+          voice={voice}
+        />
+      ))}
     </div>
   );
 }
 
-function withEntryOrder(summary: RoundSummary, recap: WordRecap[]): RoundSummary {
-  const known = [...summary.unique, ...summary.shared, ...(summary.rejected ?? [])].some(
-    (word) => word.order != null,
+function HistoryRoundPanel({
+  round,
+  daily,
+  voice,
+}: {
+  round: HistoryRound;
+  daily: boolean;
+  voice: "self" | "public";
+}) {
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const sealed = daily && !round.grid;
+
+  return (
+    <section className="panel history-round">
+      <h2>{daily ? "Grille du jour" : `Manche ${round.round}`}</h2>
+      <div className="history-round-body">
+        {round.grid && <MiniGrid grid={round.grid} />}
+        <ul className="lobby-room-players scored">
+          {round.players.map((player) => {
+            const key = playerKey(round.round, player);
+            const open = key === openKey;
+            const words = wordsFor(round, player);
+            return (
+              <li className={`lobby-room-player${open ? " is-open" : ""}`} key={key}>
+                {sealed ? (
+                  <PlayerRow player={player} voice={voice} />
+                ) : (
+                  <button
+                    type="button"
+                    className="history-player-toggle"
+                    aria-expanded={open}
+                    onClick={() => setOpenKey(open ? null : key)}
+                  >
+                    <PlayerRow player={player} voice={voice} />
+                  </button>
+                )}
+                {open && (
+                  words.length === 0 ? (
+                    <p className="muted history-player-empty">Aucun mot.</p>
+                  ) : (
+                    <ul className="history-player-words">
+                      {words.map((word) => (
+                        <li key={word.key} className={word.shared ? "is-shared" : undefined}>
+                          <WordLink word={word.display} />
+                          <sup>{word.points}</sup>
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+      {sealed ? (
+        <p className="hint">
+          Grille et mots restent cachés jusqu’à demain, pour ne pas gâcher le Lexo du jour des
+          autres.
+        </p>
+      ) : (
+        round.summary && <PossibleWords summary={round.summary} collapsible />
+      )}
+    </section>
   );
-  if (known) return summary;
-  const orderByKey = new Map<string, number>();
-  let next = 0;
-  for (const block of recap) {
-    for (const word of [...block.words].reverse()) {
-      if (!orderByKey.has(word.key)) orderByKey.set(word.key, next++);
-    }
-  }
-  const stamp = <T extends { key: string }>(word: T) => ({
-    ...word,
-    order: orderByKey.get(word.key),
-  });
-  return {
-    ...summary,
-    unique: summary.unique.map(stamp),
-    shared: summary.shared.map(stamp),
-    rejected: (summary.rejected ?? []).map(stamp),
-  };
 }
 
-function summaryFromRecap(recap: WordRecap[]): RoundSummary {
-  const unique: SummaryWord[] = [];
-  const shared = new Map<string, SharedWord>();
-  let next = 0;
-  for (const block of recap) {
-    for (const word of [...block.words].reverse()) {
-      if (word.shared) {
-        const existing = shared.get(word.key);
-        if (existing) {
-          existing.names.push({ name: block.name, color: block.color });
-          existing.playerIds.push(block.playerId);
-        } else {
-          shared.set(word.key, {
-            key: word.key,
-            display: word.display,
-            letters: word.letters,
-            names: [{ name: block.name, color: block.color }],
-            playerIds: [block.playerId],
-            likedBy: [],
-            order: next++,
-          });
-        }
-      } else {
-        unique.push({
-          key: `${block.playerId}-${word.key}`,
-          display: word.display,
-          letters: word.letters,
-          points: word.points,
-          playerId: block.playerId,
-          name: block.name,
-          color: block.color,
-          likedBy: [],
-          order: next++,
-        });
-      }
-    }
-  }
-  return {
-    unique,
-    shared: [...shared.values()],
-    rejected: [],
-    missed: [],
-    possibleCount: 0,
-  };
+function PlayerRow({
+  player,
+  voice,
+}: {
+  player: HistoryRound["players"][number];
+  voice: "self" | "public";
+}) {
+  return (
+    <>
+      <span className="avatar" style={{ background: player.color }}>
+        {player.name.slice(0, 1).toUpperCase()}
+      </span>
+      <strong>
+        {player.name}
+        {player.you && voice === "self" ? " (toi)" : ""}
+      </strong>
+      {player.roundScore != null ? (
+        <PlayerScore roundScore={player.roundScore} totalScore={player.score} />
+      ) : (
+        <span className="lobby-room-score">{player.score} pts</span>
+      )}
+    </>
+  );
+}
+
+function playerKey(round: number, player: HistoryRound["players"][number]) {
+  return `${round}-${player.name}-${player.color}`;
+}
+
+function wordsFor(round: HistoryRound, player: HistoryRound["players"][number]): FoundWord[] {
+  const block = round.recap.find((entry) => entry.name === player.name && entry.color === player.color);
+  return [...(block?.words ?? [])].reverse();
 }
 
 function MiniGrid({ grid }: { grid: Cell[] }) {

@@ -255,9 +255,24 @@ export const auth = betterAuth({
   },
 });
 
+/**
+ * Better Auth 1.7.0–1.7.2 exigeait `account.issuer`. Depuis 1.7.3 la colonne
+ * n’est plus écrite : un NOT NULL bloque toute connexion. SQLite ne sait pas
+ * rendre une colonne nullable, on la supprime.
+ */
+function dropLegacyAccountIssuer() {
+  const columns = authDb.prepare(`PRAGMA table_info(account)`).all() as { name: string }[];
+  if (!columns.some((column) => column.name === "issuer")) return;
+  authDb.exec(`
+    DROP INDEX IF EXISTS account_issuer_accountId_uidx;
+    ALTER TABLE "account" DROP COLUMN "issuer";
+  `);
+}
+
 export async function migrateAuth() {
   const { runMigrations } = await getMigrations(auth.options);
   await runMigrations();
+  dropLegacyAccountIssuer();
 }
 
 export async function sessionFromHeaders(headers: IncomingHttpHeaders) {

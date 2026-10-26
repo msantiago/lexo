@@ -11,6 +11,7 @@ import Avatar from "../components/Avatar";
 import AvatarCropper from "../components/AvatarCropper";
 import { authClient, displayNameFromUser, sanitizePseudo } from "../lib/auth-client";
 import { loadImageFile } from "../lib/crop-avatar";
+import { setSoundEnabled, soundEnabled, subscribeSound } from "../lib/sound-pref";
 
 type Props = {
   onDisplayName: (name: string) => void;
@@ -25,6 +26,7 @@ export default function Preferences({ onDisplayName }: Props) {
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [hasPhoto, setHasPhoto] = useState(false);
   const [cropImage, setCropImage] = useState<HTMLImageElement | null>(null);
+  const [sound, setSound] = useState(soundEnabled);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const label = displayNameFromUser(session?.user?.name, session?.user?.email);
@@ -40,6 +42,8 @@ export default function Preferences({ onDisplayName }: Props) {
   useEffect(() => {
     setNick(label);
   }, [label]);
+
+  useEffect(() => subscribeSound(setSound), []);
 
   useEffect(() => {
     if (avatarId === PHOTO_AVATAR_ID) setHasPhoto(true);
@@ -148,7 +152,7 @@ export default function Preferences({ onDisplayName }: Props) {
           <div className="profile-identity">
             <div className="meta">
               <h1>Préférences</h1>
-              <span>Avatar, pseudo et réglages du compte</span>
+              <span>Avatar, pseudo et son</span>
             </div>
           </div>
         </div>
@@ -251,6 +255,24 @@ export default function Preferences({ onDisplayName }: Props) {
             {nickBusy ? "Enregistrement…" : nickSaved ? "Enregistré" : "Enregistrer"}
           </button>
         </form>
+
+        <button
+          type="button"
+          className="rule-switch prefs-sound"
+          role="switch"
+          aria-checked={sound}
+          onClick={() => setSoundEnabled(!sound)}
+        >
+          <span className="rule-switch-copy">
+            <span className="rule-switch-label">Son</span>
+            <span className="rules-hint rule-switch-hint">
+              Coupe les effets sonores pour laisser ta musique continuer.
+            </span>
+          </span>
+          <span className={`switch ${sound ? "on" : ""}`} aria-hidden>
+            <i />
+          </span>
+        </button>
 
         {error && <p className="account-error">{error}</p>}
       </section>
