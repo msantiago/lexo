@@ -16,10 +16,18 @@ import { colors } from "../theme";
 type Props = {
   connection: ConnectionState;
   onNeedAuth: () => void;
+  onDaily: () => void;
+  onProfile: () => void;
   toast: string | null;
 };
 
-export default function HomeScreen({ connection, onNeedAuth, toast }: Props) {
+export default function HomeScreen({
+  connection,
+  onNeedAuth,
+  onDaily,
+  onProfile,
+  toast,
+}: Props) {
   const { data: session, isPending } = authClient.useSession();
   const [rooms, setRooms] = useState<LobbyRoom[]>([]);
   const [joinCode, setJoinCode] = useState("");
@@ -68,6 +76,13 @@ export default function HomeScreen({ connection, onNeedAuth, toast }: Props) {
     if (!code) return;
     setBusy(true);
     getSocket().emit("room:join", { code, name });
+    setTimeout(() => setBusy(false), 800);
+  };
+
+  const observe = (code: string) => {
+    if (!requireAuth()) return;
+    setBusy(true);
+    getSocket().emit("room:observe", { code, name });
     setTimeout(() => setBusy(false), 800);
   };
 
@@ -145,6 +160,12 @@ export default function HomeScreen({ connection, onNeedAuth, toast }: Props) {
             >
               <Text style={styles.btnIvoryText}>Créer un salon</Text>
             </Pressable>
+            <Pressable style={[styles.btn, styles.btnGhost]} onPress={onDaily}>
+              <Text style={styles.btnGhostText}>Lexo du jour</Text>
+            </Pressable>
+            <Pressable style={[styles.btn, styles.btnGhost]} onPress={onProfile}>
+              <Text style={styles.btnGhostText}>Mon compte</Text>
+            </Pressable>
           </View>
 
           <View style={styles.panel}>
@@ -175,27 +196,38 @@ export default function HomeScreen({ connection, onNeedAuth, toast }: Props) {
               <Text style={styles.hint}>Aucun salon public pour l’instant.</Text>
             ) : (
               rooms.map((room) => (
-                <Pressable
-                  key={room.code}
-                  style={styles.roomRow}
-                  disabled={busy || connection !== "connected"}
-                  onPress={() => {
-                    if (!requireAuth()) return;
-                    setBusy(true);
-                    getSocket().emit("room:join", { code: room.code, name });
-                    setTimeout(() => setBusy(false), 800);
-                  }}
-                >
+                <View key={room.code} style={styles.roomRow}>
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text style={styles.roomCode}>{room.code}</Text>
                     <Text style={styles.hint}>
                       {room.solo ? "Solo" : "Multi"} · {difficultyLabel(room.difficulty)} ·{" "}
                       {room.playerCount} joueur{room.playerCount > 1 ? "s" : ""}
+                      {room.phase !== "lobby" ? " · en cours" : ""}
                       {room.mine ? " · ta table" : ""}
                     </Text>
                   </View>
-                  <Text style={styles.joinLink}>Rejoindre</Text>
-                </Pressable>
+                  <View style={styles.roomActions}>
+                    {room.phase === "lobby" ? (
+                      <Pressable
+                        disabled={busy || connection !== "connected"}
+                        onPress={() => {
+                          if (!requireAuth()) return;
+                          setBusy(true);
+                          getSocket().emit("room:join", { code: room.code, name });
+                          setTimeout(() => setBusy(false), 800);
+                        }}
+                      >
+                        <Text style={styles.joinLink}>Rejoindre</Text>
+                      </Pressable>
+                    ) : null}
+                    <Pressable
+                      disabled={busy || connection !== "connected"}
+                      onPress={() => observe(room.code)}
+                    >
+                      <Text style={styles.observeLink}>Observer</Text>
+                    </Pressable>
+                  </View>
+                </View>
               ))
             )}
           </View>
@@ -276,7 +308,9 @@ const styles = StyleSheet.create({
     borderTopColor: colors.line,
   },
   roomCode: { color: colors.cream, fontWeight: "700", fontSize: 17, letterSpacing: 1 },
+  roomActions: { alignItems: "flex-end", gap: 6 },
   joinLink: { color: colors.gold, fontWeight: "700" },
+  observeLink: { color: colors.goldSoft, fontWeight: "600", fontSize: 13 },
   hint: { color: colors.textMuted, fontSize: 14, lineHeight: 20 },
   btn: {
     borderRadius: 14,
@@ -287,9 +321,14 @@ const styles = StyleSheet.create({
   btnIvory: {
     backgroundColor: colors.ivory,
   },
+  btnGhost: {
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
   btnDisabled: { opacity: 0.55 },
   btnGoldText: { color: colors.ink, fontWeight: "700", fontSize: 16 },
   btnIvoryText: { color: colors.ink, fontWeight: "700", fontSize: 16 },
+  btnGhostText: { color: colors.cream, fontWeight: "600", fontSize: 16 },
   signOut: {
     color: colors.textMuted,
     textAlign: "center",

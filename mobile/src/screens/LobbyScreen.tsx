@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Share, StyleSheet, Text, View } from "react-native";
 import type { RoomView } from "@shared/types";
-import { summarizeRules } from "@shared/rules";
+import SettingsPanel from "../components/SettingsPanel";
 import { getSocket } from "../socket";
 import { colors } from "../theme";
 
@@ -15,12 +15,27 @@ export default function LobbyScreen({ room, playerId, onLeave }: Props) {
   const [starting, setStarting] = useState(false);
   const isHost = Boolean(playerId && room.hostId === playerId);
   const canStart = isHost && !room.observing;
+  const canEdit = canStart;
+
+  const shareInvite = async () => {
+    try {
+      await Share.share({
+        message: `Rejoins mon salon Lexo : ${room.code}`,
+      });
+    } catch {
+      /* cancelled */
+    }
+  };
 
   return (
     <View style={styles.wrap}>
       <Text style={styles.brand}>L E X O</Text>
       <Text style={styles.code}>Salon {room.code}</Text>
       <Text style={styles.meta}>{room.solo ? "Partie solo" : "Partie multi"}</Text>
+
+      <Pressable style={[styles.btn, styles.btnIvory]} onPress={() => void shareInvite()}>
+        <Text style={styles.btnIvoryText}>Partager le code</Text>
+      </Pressable>
 
       <View style={styles.panel}>
         <Text style={styles.panelTitle}>Joueurs</Text>
@@ -38,7 +53,20 @@ export default function LobbyScreen({ room, playerId, onLeave }: Props) {
 
       <View style={styles.panel}>
         <Text style={styles.panelTitle}>Règles</Text>
-        <Text style={styles.body}>{summarizeRules(room.settings, !room.solo)}</Text>
+        {canEdit ? (
+          <SettingsPanel
+            settings={room.settings}
+            multiplayer={!room.solo}
+            onChange={(next) => getSocket().emit("room:settings", next)}
+          />
+        ) : (
+          <SettingsPanel
+            settings={room.settings}
+            multiplayer={!room.solo}
+            disabled
+            onChange={() => undefined}
+          />
+        )}
       </View>
 
       {room.observing ? (
@@ -101,7 +129,6 @@ const styles = StyleSheet.create({
   swatch: { width: 14, height: 14, borderRadius: 7 },
   playerName: { color: colors.cream, fontSize: 16, fontWeight: "600" },
   offline: { color: colors.textMuted },
-  body: { color: colors.cream, fontSize: 15, lineHeight: 22 },
   hint: { color: colors.textMuted, fontSize: 15, lineHeight: 22 },
   btn: {
     borderRadius: 14,
@@ -109,11 +136,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   btnGold: { backgroundColor: colors.gold },
+  btnIvory: { backgroundColor: colors.ivory },
   btnGhost: {
     borderWidth: 1,
     borderColor: colors.line,
   },
   btnDisabled: { opacity: 0.55 },
   btnGoldText: { color: colors.ink, fontWeight: "700", fontSize: 16 },
+  btnIvoryText: { color: colors.ink, fontWeight: "700", fontSize: 16 },
   btnGhostText: { color: colors.cream, fontWeight: "600", fontSize: 16 },
 });

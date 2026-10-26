@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { matchHeadline, roundHeadline } from "@shared/round";
+import PlayerScore, { ScoreArrow } from "../components/PlayerScore";
 import type { RoomView } from "@shared/types";
+import RoundChat from "../components/RoundChat";
+import WordTables from "../components/WordTables";
 import { formatTime } from "../lib/format";
 import { getSocket } from "../socket";
 import { colors } from "../theme";
@@ -15,8 +18,10 @@ type Props = {
 export default function ResultsScreen({ room, isHost, onLeave }: Props) {
   const [starting, setStarting] = useState(false);
   const [now, setNow] = useState(() => Date.now());
-  const ranked = [...room.players].sort(
-    (a, b) => b.totalScore - a.totalScore || b.roundScore - a.roundScore,
+  const ranked = [...room.players].sort((a, b) =>
+    room.matchOver
+      ? b.totalScore - a.totalScore || b.roundScore - a.roundScore
+      : b.roundScore - a.roundScore || b.totalScore - a.totalScore,
   );
   const solo = room.players.length === 1;
   const you = room.players.find((p) => p.id === room.you.id);
@@ -27,6 +32,7 @@ export default function ResultsScreen({ room, isHost, onLeave }: Props) {
   const readyCount = connected.filter((p) => readyIds.has(p.id)).length;
   const remainingMs =
     !matchOver && room.nextRoundAt != null ? Math.max(0, room.nextRoundAt - now) : 0;
+  const badges = room.you.earnedBadges ?? [];
 
   useEffect(() => {
     if (matchOver || room.nextRoundAt == null) return;
@@ -55,24 +61,30 @@ export default function ResultsScreen({ room, isHost, onLeave }: Props) {
   const onReady = () => getSocket().emit("game:ready");
   const onRematch = () => getSocket().emit("game:rematch");
 
+  const shareInvite = async () => {
+    try {
+      await Share.share({ message: `Rejoins mon salon Lexo : ${room.code}` });
+    } catch {
+      /* cancelled */
+    }
+  };
+
   return (
-    <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+    <View style={styles.scroll}>
       <Text style={styles.label}>{matchOver ? "Partie terminée" : "Temps écoulé"}</Text>
       <Text style={styles.title}>{title}</Text>
       {you ? (
-        <Text style={styles.sub}>
-          {matchOver ? (
-            <>
-              Score final : <Text style={styles.strong}>{you.totalScore} pts</Text>
-            </>
-          ) : (
-            <>
-              Cette manche : <Text style={styles.strong}>{you.roundScore} pts</Text>
-              {" · "}
-              Total : <Text style={styles.strong}>{you.totalScore} pts</Text>
-            </>
-          )}
-        </Text>
+        <View style={styles.scoreLine}>
+          <Text style={styles.scoreRound}>+{you.roundScore}</Text>
+          <ScoreArrow size={16} />
+          <Text style={styles.scoreTotal}>{you.totalScore}</Text>
+        </View>
+      ) : null}
+
+      {!room.solo && room.settings.allowJoinMidGame ? (
+        <Pressable style={[styles.btn, styles.btnIvory]} onPress={() => void shareInvite()}>
+          <Text style={styles.btnIvoryText}>Inviter · {room.code}</Text>
+        </Pressable>
       ) : null}
 
       <View style={styles.actions}>
@@ -122,6 +134,18 @@ export default function ResultsScreen({ room, isHost, onLeave }: Props) {
         </Pressable>
       </View>
 
+      {badges.length > 0 ? (
+        <View style={styles.panel}>
+          <Text style={styles.panelTitle}>Badges gagnés</Text>
+          {badges.map((badge) => (
+            <Text key={badge.id} style={styles.badge}>
+              {badge.title}
+              {badge.description ? ` — ${badge.description}` : ""}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+
       <View style={styles.panel}>
         <Text style={styles.panelTitle}>{matchOver ? "Palmarès" : "Classement"}</Text>
         {ranked.map((p, i) => (
@@ -135,17 +159,17 @@ export default function ResultsScreen({ room, isHost, onLeave }: Props) {
                 {!matchOver && readyIds.has(p.id) ? " · prêt" : ""}
               </Text>
               <Text style={styles.hint}>
-                {matchOver
-                  ? `${p.totalScore} pts`
-                  : `+${p.roundScore} · ${p.wordCount} mot${p.wordCount > 1 ? "s" : ""}`}
+                {p.wordCount} mot{p.wordCount > 1 ? "s" : ""}
               </Text>
             </View>
-            <Text style={styles.pts}>{p.totalScore}</Text>
+            <PlayerScore roundScore={p.roundScore} totalScore={p.totalScore} />
           </View>
         ))}
       </View>
 
-      {room.you.words.length > 0 ? (
+      {room.summary ? (
+        <WordTables summary={room.summary} youId={room.you.id} observing={room.observing} />
+      ) : room.you.words.length > 0 ? (
         <View style={styles.panel}>
           <Text style={styles.panelTitle}>Tes mots</Text>
           <Text style={styles.words}>
@@ -155,7 +179,9 @@ export default function ResultsScreen({ room, isHost, onLeave }: Props) {
           </Text>
         </View>
       ) : null}
-    </ScrollView>
+
+      {!room.solo ? <RoundChat chat={room.chat} disabled={room.observing} /> : null}
+    </View>
   );
 }
 
@@ -174,8 +200,10 @@ const styles = StyleSheet.create({
     color: colors.cream,
     lineHeight: 34,
   },
-  sub: { color: colors.textSoft, fontSize: 16, lineHeight: 24 },
   strong: { color: colors.cream, fontWeight: "800" },
+  scoreLine: { flexDirection: "row", alignItems: "center", gap: 6 },
+  scoreRound: { color: colors.cream, fontSize: 18, fontWeight: "700" },
+  scoreTotal: { color: colors.gold, fontSize: 22, fontWeight: "800" },
   actions: { gap: 10 },
   timer: { color: colors.textSoft, fontSize: 15 },
   hint: { color: colors.textMuted, fontSize: 14, lineHeight: 20 },
@@ -185,9 +213,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   btnGold: { backgroundColor: colors.gold },
+  btnIvory: { backgroundColor: colors.ivory },
   btnGhost: { borderWidth: 1, borderColor: colors.line },
   disabled: { opacity: 0.55 },
   btnGoldText: { color: colors.ink, fontWeight: "700", fontSize: 16 },
+  btnIvoryText: { color: colors.ink, fontWeight: "700", fontSize: 16 },
   btnGhostText: { color: colors.cream, fontWeight: "600", fontSize: 16 },
   panel: {
     backgroundColor: colors.surface,
@@ -204,6 +234,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     color: colors.goldSoft,
   },
+  badge: { color: colors.cream, fontSize: 14, lineHeight: 20 },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -218,6 +249,5 @@ const styles = StyleSheet.create({
   rank: { width: 22, color: colors.textMuted, fontWeight: "700" },
   swatch: { width: 12, height: 12, borderRadius: 6 },
   name: { color: colors.cream, fontWeight: "700", fontSize: 15 },
-  pts: { color: colors.gold, fontWeight: "800", fontSize: 16 },
   words: { color: colors.cream, fontSize: 14, lineHeight: 21 },
 });

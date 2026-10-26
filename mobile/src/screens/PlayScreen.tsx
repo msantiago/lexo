@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import Svg, { Circle, Path, Text as SvgText } from "react-native-svg";
 import { pathToWord } from "@shared/dice";
+import { matchScore, rankLabel, standingRank } from "@shared/round";
 import { COUNTDOWN_STEPS, countdownIndex } from "@shared/countdown";
 import type { RoomView, WordSubmitResult } from "@shared/types";
 import Board from "../components/Board";
@@ -77,9 +79,15 @@ export default function PlayScreen({ room, onLeave }: Props) {
       }
       showReject(FAIL_MESSAGES[result.reason]);
     };
+    const onShared = () => {
+      setFeedback({ text: "Quelqu’un a trouvé le même mot", ok: false });
+      flashBriefly("fail");
+    };
     socket.on("word:result", onResult);
+    socket.on("word:shared", onShared);
     return () => {
       socket.off("word:result", onResult);
+      socket.off("word:shared", onShared);
     };
   }, []);
 
@@ -113,8 +121,21 @@ export default function PlayScreen({ room, onLeave }: Props) {
   lockedRef.current = frozen;
 
   const preview = room.grid && path.length ? pathToWord(room.grid, path).display : "";
-  const you = room.players.find((p) => p.id === room.you.id);
+  const focusId = observing
+    ? (room.players.find((player) => player.connected)?.id ?? room.players[0]?.id ?? "")
+    : room.you.id;
+  const you = room.players.find((player) => player.id === focusId) ?? null;
+  const others = room.players
+    .filter((player) => player.id !== focusId)
+    .sort(
+      (a, b) =>
+        matchScore(b.totalScore, b.roundScore, true) - matchScore(a.totalScore, a.roundScore, true) ||
+        a.name.localeCompare(b.name, "fr"),
+    );
+  const rank = you && room.players.length > 1 ? standingRank(room.players, you.id) : 0;
+  const place = rank === 1 || rank === 2 || rank === 3 ? rank : 0;
   const words = room.you.words;
+  const self = room.players.find((player) => player.id === room.you.id) ?? null;
 
   if (!room.grid) {
     return (
@@ -135,12 +156,9 @@ export default function PlayScreen({ room, onLeave }: Props) {
             {" · "}
             {room.code}
           </Text>
-          <Text style={styles.scoreLine}>
-            {you ? `${you.roundScore} pts cette manche · ${you.totalScore} total` : "—"}
-            {room.players.length > 1
-              ? ` · ${room.players.length} joueurs`
-              : ""}
-          </Text>
+          {room.players.length > 1 ? (
+            <Text style={styles.scoreMeta}>{room.players.length} joueurs</Text>
+          ) : null}
         </View>
         <Pressable onPress={onLeave} hitSlop={8}>
           <Text style={styles.leave}>Quitter</Text>
@@ -157,6 +175,31 @@ export default function PlayScreen({ room, onLeave }: Props) {
           </Text>
         ) : null}
       </View>
+
+      {others.length > 0 ? (
+        <View style={styles.othersRow}>
+          {others.map((player) => (
+            <View key={player.id} style={styles.otherChip}>
+              <View style={[styles.dot, { backgroundColor: player.color }]} />
+              <Text style={styles.otherName} numberOfLines={1}>
+                {player.name}
+              </Text>
+              <Text style={styles.otherScore}>{player.roundScore}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {you ? (
+        <View style={styles.youScore}>
+          <Text style={styles.youScoreValue}>{you.roundScore}</Text>
+          {rank > 0 ? (
+            <View style={styles.rank} accessibilityLabel={rankLabel(rank)}>
+              {place > 0 ? <Medal place={place} /> : <Text style={styles.rankText}>{rankLabel(rank)}</Text>}
+            </View>
+          ) : null}
+        </View>
+      ) : null}
 
       <View style={styles.boardSlot}>
         <Board
@@ -177,7 +220,7 @@ export default function PlayScreen({ room, onLeave }: Props) {
       <View style={styles.words}>
         <Text style={styles.wordsTitle}>
           Tes mots ({words.length})
-          {you ? ` · ${you.roundScore} pts` : ""}
+          {self ? ` · ${self.roundScore} pts` : ""}
         </Text>
         <Text style={styles.wordsList}>
           {words.length === 0
@@ -188,19 +231,35 @@ export default function PlayScreen({ room, onLeave }: Props) {
         </Text>
       </View>
 
-      {!observing && room.players.length > 1 ? (
-        <View style={styles.others}>
-          {room.players
-            .filter((p) => p.id !== room.you.id)
-            .map((p) => (
-              <Text key={p.id} style={styles.otherLine}>
-                <Text style={{ color: p.color }}>● </Text>
-                {p.name} · {p.wordCount} mot{p.wordCount > 1 ? "s" : ""}
-              </Text>
-            ))}
-        </View>
-      ) : null}
     </View>
+  );
+}
+
+const METAL = {
+  1: { disc: "#f6c445", rim: "#e2a61a", ink: "#c4840a" },
+  2: { disc: "#d5dde6", rim: "#b4bec8", ink: "#7b8794" },
+  3: { disc: "#e2a86e", rim: "#c4844a", ink: "#8d5a32" },
+} as const;
+
+function Medal({ place }: { place: 1 | 2 | 3 }) {
+  const metal = METAL[place];
+  return (
+    <Svg width={22} height={26} viewBox="0 0 48 58">
+      <Path fill="#ef3d3d" d="M16 30 9 50l8-5 5 11 2-22z" />
+      <Path fill="#d12525" d="M32 30 39 50l-8-5-5 11-2-22z" />
+      <Circle cx={24} cy={20} r={16} fill={metal.disc} />
+      <Circle cx={24} cy={20} r={12.4} fill="none" stroke={metal.rim} strokeWidth={1.6} />
+      <SvgText
+        x={24}
+        y={22}
+        textAnchor="middle"
+        fontSize={16}
+        fontWeight="700"
+        fill={metal.ink}
+      >
+        {place}
+      </SvgText>
+    </Svg>
   );
 }
 
@@ -208,7 +267,16 @@ const styles = StyleSheet.create({
   wrap: { flex: 1, gap: 12 },
   top: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
   meta: { color: colors.textMuted, fontSize: 13, fontWeight: "600" },
-  scoreLine: { color: colors.cream, fontSize: 15, fontWeight: "600" },
+  scoreMeta: { color: colors.textMuted, fontSize: 13, fontWeight: "600" },
+  othersRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 8 },
+  otherChip: { flexDirection: "row", alignItems: "center", gap: 4, maxWidth: "100%" },
+  dot: { width: 7, height: 7, borderRadius: 4 },
+  otherName: { color: colors.textMuted, fontSize: 12, fontWeight: "700", maxWidth: 72 },
+  otherScore: { color: colors.gold, fontSize: 14, fontWeight: "800" },
+  youScore: { flexDirection: "row", alignItems: "flex-start", justifyContent: "center" },
+  youScoreValue: { color: colors.gold, fontSize: 28, fontWeight: "800" },
+  rank: { marginTop: -2, marginLeft: 2 },
+  rankText: { color: colors.goldSoft, fontSize: 13, fontWeight: "800" },
   leave: { color: colors.goldSoft, fontWeight: "700", fontSize: 15, marginTop: 2 },
   previewRow: {
     minHeight: 28,
@@ -260,7 +328,5 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   wordsList: { color: colors.cream, fontSize: 14, lineHeight: 20 },
-  others: { gap: 4 },
-  otherLine: { color: colors.textMuted, fontSize: 13 },
   hint: { color: colors.textMuted, fontSize: 15 },
 });
