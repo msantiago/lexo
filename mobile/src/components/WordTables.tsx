@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { wordPoints } from "@shared/dice";
 import type { RoundSummary, SharedWord, SummaryWord } from "@shared/types";
 import { getSocket } from "../socket";
 import { colors } from "../theme";
@@ -14,6 +15,10 @@ export default function WordTables({ summary, youId, observing }: Props) {
     (a, b) => (a.order ?? 0) - (b.order ?? 0) || b.points - a.points,
   );
   const shared = [...summary.shared].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const maxPoints =
+    unique.reduce((sum, word) => sum + word.points, 0) +
+    shared.reduce((sum, word) => sum + wordPoints(word.letters, false), 0) +
+    summary.missed.reduce((sum, word) => sum + word.points, 0);
 
   return (
     <View style={styles.wrap}>
@@ -44,7 +49,8 @@ export default function WordTables({ summary, youId, observing }: Props) {
       {summary.missed.length > 0 ? (
         <View style={styles.panel}>
           <Text style={styles.title}>
-            Mots possibles ({summary.possibleCount})
+            Mots possibles ({summary.possibleCount}
+            {maxPoints > 0 ? ` · ${maxPoints} pt${maxPoints > 1 ? "s" : ""} max` : ""})
           </Text>
           <Text style={styles.missed}>
             {summary.missed

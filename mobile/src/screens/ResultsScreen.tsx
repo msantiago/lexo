@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { matchHeadline, roundHeadline } from "@shared/round";
+import PlayerScore, { ScoreArrow } from "../components/PlayerScore";
 import type { RoomView } from "@shared/types";
 import RoundChat from "../components/RoundChat";
 import WordTables from "../components/WordTables";
@@ -17,8 +18,10 @@ type Props = {
 export default function ResultsScreen({ room, isHost, onLeave }: Props) {
   const [starting, setStarting] = useState(false);
   const [now, setNow] = useState(() => Date.now());
-  const ranked = [...room.players].sort(
-    (a, b) => b.totalScore - a.totalScore || b.roundScore - a.roundScore,
+  const ranked = [...room.players].sort((a, b) =>
+    room.matchOver
+      ? b.totalScore - a.totalScore || b.roundScore - a.roundScore
+      : b.roundScore - a.roundScore || b.totalScore - a.totalScore,
   );
   const solo = room.players.length === 1;
   const you = room.players.find((p) => p.id === room.you.id);
@@ -71,19 +74,11 @@ export default function ResultsScreen({ room, isHost, onLeave }: Props) {
       <Text style={styles.label}>{matchOver ? "Partie terminée" : "Temps écoulé"}</Text>
       <Text style={styles.title}>{title}</Text>
       {you ? (
-        <Text style={styles.sub}>
-          {matchOver ? (
-            <>
-              Score final : <Text style={styles.strong}>{you.totalScore} pts</Text>
-            </>
-          ) : (
-            <>
-              Cette manche : <Text style={styles.strong}>{you.roundScore} pts</Text>
-              {" · "}
-              Total : <Text style={styles.strong}>{you.totalScore} pts</Text>
-            </>
-          )}
-        </Text>
+        <View style={styles.scoreLine}>
+          <Text style={styles.scoreRound}>+{you.roundScore}</Text>
+          <ScoreArrow size={16} />
+          <Text style={styles.scoreTotal}>{you.totalScore}</Text>
+        </View>
       ) : null}
 
       {!room.solo && room.settings.allowJoinMidGame ? (
@@ -164,12 +159,10 @@ export default function ResultsScreen({ room, isHost, onLeave }: Props) {
                 {!matchOver && readyIds.has(p.id) ? " · prêt" : ""}
               </Text>
               <Text style={styles.hint}>
-                {matchOver
-                  ? `${p.totalScore} pts`
-                  : `+${p.roundScore} · ${p.wordCount} mot${p.wordCount > 1 ? "s" : ""}`}
+                {p.wordCount} mot{p.wordCount > 1 ? "s" : ""}
               </Text>
             </View>
-            <Text style={styles.pts}>{p.totalScore}</Text>
+            <PlayerScore roundScore={p.roundScore} totalScore={p.totalScore} />
           </View>
         ))}
       </View>
@@ -207,8 +200,10 @@ const styles = StyleSheet.create({
     color: colors.cream,
     lineHeight: 34,
   },
-  sub: { color: colors.textSoft, fontSize: 16, lineHeight: 24 },
   strong: { color: colors.cream, fontWeight: "800" },
+  scoreLine: { flexDirection: "row", alignItems: "center", gap: 6 },
+  scoreRound: { color: colors.cream, fontSize: 18, fontWeight: "700" },
+  scoreTotal: { color: colors.gold, fontSize: 22, fontWeight: "800" },
   actions: { gap: 10 },
   timer: { color: colors.textSoft, fontSize: 15 },
   hint: { color: colors.textMuted, fontSize: 14, lineHeight: 20 },
@@ -254,6 +249,5 @@ const styles = StyleSheet.create({
   rank: { width: 22, color: colors.textMuted, fontWeight: "700" },
   swatch: { width: 12, height: 12, borderRadius: 6 },
   name: { color: colors.cream, fontWeight: "700", fontSize: 15 },
-  pts: { color: colors.gold, fontWeight: "800", fontSize: 16 },
   words: { color: colors.cream, fontSize: 14, lineHeight: 21 },
 });
