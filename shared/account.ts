@@ -47,8 +47,11 @@ export type StatsByMode = {
 export type HistoryPlayer = {
   name: string;
   color: string;
+  /** Score de la partie (cumul à la fin de cette manche, ou score final sur la carte). */
   score: number;
   you: boolean;
+  /** Score de la manche, présent dans le détail d’une manche. */
+  roundScore?: number;
 };
 
 export type GameHistoryKind = "solo" | "multi" | "daily";

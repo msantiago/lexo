@@ -623,7 +623,7 @@ export function getGame(userId: string, gameId: string): GameHistoryDetail | nul
   }[];
 
   const playerStmt = db.prepare(
-    `SELECT user_id, name, color, total_score FROM round_players WHERE round_id = ?`,
+    `SELECT user_id, name, color, round_score, total_score FROM round_players WHERE round_id = ?`,
   );
 
   const solo = Boolean(game.solo);
@@ -638,6 +638,7 @@ export function getGame(userId: string, gameId: string): GameHistoryDetail | nul
         user_id: string | null;
         name: string;
         color: string;
+        round_score: number;
         total_score: number;
       }[];
       return {
@@ -657,6 +658,7 @@ export function getGame(userId: string, gameId: string): GameHistoryDetail | nul
           name: p.name,
           color: p.color,
           score: p.total_score,
+          roundScore: p.round_score,
           you: p.user_id === userId,
         })),
       };

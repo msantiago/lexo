@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { matchScore } from "@shared/round";
 import { MAX_PLAYERS, foldPlayerName, type LobbyPlayer, type LobbyRoom } from "@shared/types";
 import { difficultyLabel } from "@shared/rules";
 import Landing from "./Landing";
 import Avatar from "../components/Avatar";
+import PlayerScore from "../components/PlayerScore";
 import Breadcrumb, { type Crumb } from "../components/Breadcrumb";
 import { JoinButton, WatchButton } from "../components/RoundActions";
 import FloatingLetters from "../components/FloatingLetters";
@@ -400,7 +402,12 @@ function LobbyRoomCard({
               online={player.connected}
             />
             <span className="live-seat-name">{player.name}</span>
-            {started && <b>{player.totalScore + (playing ? player.roundScore : 0)}</b>}
+            {started && (
+              <PlayerScore
+                roundScore={player.roundScore}
+                totalScore={matchScore(player.totalScore, player.roundScore, playing)}
+              />
+            )}
           </li>
         ))}
       </ol>
@@ -418,9 +425,10 @@ function LobbyRoomCard({
 }
 
 function rankPlayers(players: LobbyPlayer[], playing: boolean): LobbyPlayer[] {
-  const points = (player: LobbyPlayer) => player.totalScore + (playing ? player.roundScore : 0);
+  const points = (player: LobbyPlayer) => matchScore(player.totalScore, player.roundScore, playing);
   return [...players].sort(
-    (a, b) => points(b) - points(a) || a.name.localeCompare(b.name, "fr"),
+    (a, b) =>
+      b.roundScore - a.roundScore || points(b) - points(a) || a.name.localeCompare(b.name, "fr"),
   );
 }
 

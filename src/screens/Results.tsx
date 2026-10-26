@@ -3,6 +3,7 @@ import { letterNeedsBaseMark } from "@shared/dice";
 import { matchHeadline, roundHeadline } from "@shared/round";
 import type { Cell, RoomView } from "@shared/types";
 import Avatar from "../components/Avatar";
+import PlayerScore from "../components/PlayerScore";
 import { BadgeButton } from "../components/BadgeDialog";
 import InviteLink from "../components/InviteLink";
 import WordTables, { PossibleWords } from "../components/WordTables";
@@ -24,8 +25,10 @@ type Props = {
 export default function Results({ room, isHost, admin, onReady, onRematch, onLeave }: Props) {
   const [starting, setStarting] = useState(false);
   const [now, setNow] = useState(() => Date.now());
-  const ranked = [...room.players].sort(
-    (a, b) => b.totalScore - a.totalScore || b.roundScore - a.roundScore,
+  const ranked = [...room.players].sort((a, b) =>
+    room.matchOver
+      ? b.totalScore - a.totalScore || b.roundScore - a.roundScore
+      : b.roundScore - a.roundScore || b.totalScore - a.totalScore,
   );
   const solo = room.players.length === 1;
   const you = room.players.find((p) => p.id === room.you.id);
@@ -77,15 +80,7 @@ export default function Results({ room, isHost, admin, onReady, onRematch, onLea
             <span className="observe-badge">Observateur</span>
           ) : you ? (
             <>
-              {matchOver ? (
-                <>
-                  Score final : <b>{you.totalScore} pts</b>
-                </>
-              ) : (
-                <>
-                  Cette manche : <b>{you.roundScore} pts</b> · Total : <b>{you.totalScore} pts</b>
-                </>
-              )}
+              <PlayerScore roundScore={you.roundScore} totalScore={you.totalScore} />
               {!solo && room.settings.objective === "rounds" && (
                 <>
                   {" "}
@@ -199,19 +194,12 @@ export default function Results({ room, isHost, admin, onReady, onRematch, onLea
                     {!matchOver && readyIds.has(p.id) ? " · prêt" : ""}
                   </strong>
                   <div className="muted">
-                    {matchOver ? (
-                      <>
-                        {p.totalScore} pt{p.totalScore > 1 ? "s" : ""}
-                      </>
-                    ) : (
-                      <>
-                        +{p.roundScore} cette manche · {p.wordCount} mot
-                        {p.wordCount > 1 ? "s" : ""}
-                      </>
-                    )}
+                    {p.wordCount} mot{p.wordCount > 1 ? "s" : ""}
                   </div>
                 </div>
-                <div className="podium-pts">{p.totalScore}</div>
+                <div className="podium-pts">
+                  <PlayerScore roundScore={p.roundScore} totalScore={p.totalScore} />
+                </div>
               </div>
             ))}
           </div>
