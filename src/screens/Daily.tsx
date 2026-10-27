@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DAILY_DURATION_SEC,
   DAILY_STREAK_FULL,
@@ -23,7 +23,9 @@ import type { Crumb } from "../components/Breadcrumb";
 import Avatar from "../components/Avatar";
 import Board from "../components/Board";
 import CountdownGate from "../components/CountdownGate";
+import LeaveButton from "../components/LeaveButton";
 import NewBadge from "../components/NewBadge";
+import ScoreBursts, { createScoreBurst, type ScoreBurstItem } from "../components/ScoreBurst";
 import Timer from "../components/Timer";
 import WordLink from "../components/WordLink";
 import WordList from "../components/WordList";
@@ -210,6 +212,10 @@ function DailyPlay({
   const [feedback, setFeedback] = useState<{ text: string; ok: boolean; id: number } | null>(null);
   const [locked, setLocked] = useState(false);
   const [now, setNow] = useState(Date.now());
+  const [bursts, setBursts] = useState<ScoreBurstItem[]>([]);
+  const removeBurst = useCallback((id: number) => {
+    setBursts((list) => list.filter((item) => item.id !== id));
+  }, []);
   const lockedRef = useRef(false);
   const rejectTimer = useRef(0);
   const pathRef = useRef(path);
@@ -290,7 +296,16 @@ function DailyPlay({
     }
     const found = data.words[data.words.length - 1];
     onPlay({ ...current, words: data.words, score: data.score ?? current.score });
-    setFeedback({ text: found?.display ?? "", ok: true, id: Date.now() });
+    const points = found?.points ?? 0;
+    setFeedback({
+      text: points > 0 ? `+${points} pts` : "Validé !",
+      ok: true,
+      id: Date.now(),
+    });
+    if (found && points > 0) {
+      const burst = createScoreBurst(points, found.letters);
+      setBursts((list) => [...list.slice(-6), burst]);
+    }
     playScoreSound(found?.letters ?? 4);
     hapticSuccess();
     flashBriefly("success");
@@ -347,50 +362,81 @@ function DailyPlay({
   }, [play.endsAt, play.grid]);
 
   const preview = path.length ? pathToWord(play.grid, path).display : "";
+  const timeUp = !counting && remaining <= 0;
 
   return (
-    <div className="play daily-play">
+    <div className="screen play">
       <div className="play-top">
         <div className="play-top-meta">
           <div className="muted">Lexo du jour</div>
-          <div className="muted">{play.score} pts</div>
           <div className="daily-rules-line">
             4 lettres · pas de féminin d’adjectif · infinitif et participes
           </div>
         </div>
         <div className="play-top-actions">
-          <button className="text-action" type="button" onClick={onLeave}>
-            Quitter
-          </button>
+          <LeaveButton
+            onLeave={onLeave}
+            label="Quitter"
+            title="Quitter le Lexo du jour ?"
+            message="Tu sors de l’écran. Tu pourras reprendre tant que les trois minutes ne sont pas écoulées."
+            confirmLabel="Quitter"
+            compact
+          />
         </div>
       </div>
+
       <div className="stage">
+        <div className={`preview ${preview ? "" : "empty"}`}>
+          {preview
+            ? preview.split("").map((ch, i) => (
+                <span className="pop" key={`${preview}-${i}`}>
+                  {ch}
+                </span>
+              ))
+            : "Glisse ou tape un mot"}
+        </div>
         <div key={feedback?.id} className={`feedback ${feedback?.ok ? "ok" : ""}`} aria-live="polite">
           {feedback?.text ?? ""}
         </div>
         <div className="board-stack">
           <Timer remainingMs={remaining} totalMs={DAILY_DURATION_SEC * 1000} />
-          <CountdownGate startedAt={startedAt} now={now}>
-            <Board
-              grid={play.grid}
-              path={path}
-              flash={flash}
-              disabled={locked || counting || remaining <= 0}
-              shuffling={countdownShuffling(startedAt, now)}
-              revealing={countdownRevealing(startedAt, now)}
-              onPathChange={(next) => {
-                if (lockedRef.current) return;
-                setTyped("");
-                setPath(next);
-              }}
-              onSubmit={(next) => void submit(next)}
-            />
-          </CountdownGate>
+          <div className="round-you">
+            <span className="round-score" aria-label={`${play.score} points`}>
+              {play.score}
+            </span>
+          </div>
+          <div className="board-burst-host">
+            <CountdownGate startedAt={startedAt} now={now}>
+              <Board
+                grid={play.grid}
+                path={path}
+                flash={flash}
+                disabled={locked || counting || remaining <= 0}
+                shuffling={countdownShuffling(startedAt, now)}
+                revealing={countdownRevealing(startedAt, now)}
+                onPathChange={(next) => {
+                  if (lockedRef.current) return;
+                  setTyped("");
+                  setPath(next);
+                }}
+                onSubmit={(next) => void submit(next)}
+              />
+            </CountdownGate>
+            <ScoreBursts bursts={bursts} onDone={removeBurst} />
+          </div>
         </div>
-        <p className={`preview ${preview ? "" : "empty"}`}>{preview || "Glisse ou tape un mot"}</p>
         <p className="hint">Clavier · Entrée pour valider · Qu = Q ou Qu</p>
-        <WordList words={play.words.map((word) => ({ ...word, shared: false }))} />
       </div>
+      <WordList words={play.words.map((word) => ({ ...word, shared: false }))} />
+      {timeUp && (
+        <div className="times-up-overlay">
+          <div>
+            <p className="times-up-label">Temps écoulé</p>
+            <h2>Manche terminée</h2>
+            <p>Décompte des mots…</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
